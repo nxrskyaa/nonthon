@@ -1292,7 +1292,7 @@ async function renderPlayer({type, id, season, episode}) {
                     <button class="hero-btn" style="font-size:0.85rem;padding:10px 20px;" onclick="retryPlayer()">Coba Lagi</button>
                 </div>
                 <div id="player-controls" style="display:none;margin-top:16px;gap:8px;flex-wrap:wrap;align-items:center;">
-                    <select id="subSelect" onchange="setSubtitle(this.value)" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-size:0.85rem;cursor:pointer;display:none;"></select>
+                    <select id="subSelect" onchange="setSubtitle(this.value)" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-size:0.85rem;cursor:pointer;display:none;max-width:220px;"></select>
                     <select id="qualitySelect" onchange="setQuality(this.value)" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-size:0.85rem;cursor:pointer;display:none;"></select>
                     ${type === 'tv' ? `
                         <button class="hero-btn" style="background:var(--surface);font-size:0.85rem;padding:10px 20px;" onclick="prevEpisode(${id}, ${season}, ${episode})">⏮ Episode Sebelumnya</button>
@@ -1308,6 +1308,7 @@ async function renderPlayer({type, id, season, episode}) {
 
 let _hls = null;
 let _streamData = null;
+let _subtitleList = [];
 
 async function loadStream(type, id, season, episode) {
     const loading = document.getElementById('player-loading');
@@ -1392,20 +1393,8 @@ async function loadStream(type, id, season, episode) {
             throw new Error('HLS not supported');
         }
 
-        // Setup subtitle selector
-        const subs = _streamData.subtitles || [];
-        const subSel = document.getElementById('subSelect');
-        if (subs.length > 0) {
-            subSel.innerHTML = '<option value="">CC Off</option>' +
-                subs.map(s => `<option value="${s.url}">${s.label}</option>`).join('');
-            subSel.style.display = 'inline-block';
-            // Auto-enable English or Indonesian
-            const preferred = subs.find(s => s.lang === 'en' || s.lang === 'id');
-            if (preferred) {
-                subSel.value = preferred.url;
-                addSubtitleTrack(preferred.url);
-            }
-        }
+        // Setup subtitle selector — multi-language from OpenSubtitles
+        loadSubtitles(type, id, season, episode);
 
     } catch (err) {
         console.error('Stream error:', err);
@@ -1416,41 +1405,99 @@ async function loadStream(type, id, season, episode) {
     }
 }
 
-function setSubtitle(url) {
-    // Remove existing custom track
-    const video = document.getElementById('video');
-    if (!video) return;
-    
-    // Clear existing tracks
-    const tracks = video.querySelectorAll('track');
-    tracks.forEach(t => t.remove());
+// ===== Subtitles (multi-language) =====
+async function loadSubtitles(type, id, season, episode) {
+    const subSel = document.getElementById('subSelect');
+    if (!subSel) return;
 
-    // Disable HLS subtitle tracks
-    if (_hls) {
-        _hls.subtitleTrack = -1;
+    // Embedded tracks the stream provider itself shipped
+    const embedded = (_streamData?.subtitles || []).map(s => ({ ...s, src: 'stream' }));
+
+    subSel.innerHTML = '<option value="">Memuat subtitle...</option>';
+    subSel.style.display = 'inline-block';
+    subSel.disabled = true;
+
+    let online = [];
+    try {
+        const params = new URLSearchParams({ type, id });
+        if (type === 'tv') {
+            params.set('s', season || 1);
+            params.set('e', episode || 1);
+        }
+        const resp = await fetch(`/api/subs?${params}`);
+        const data = await resp.json();
+        if (data.success) online = (data.subtitles || []).map(s => ({ ...s, src: 'os' }));
+    } catch (e) {
+        console.warn('Subtitle fetch failed:', e.message);
     }
 
-    if (!url) return; // CC off
+    const all = [...embedded, ...online];
+    subSel.disabled = false;
 
-    addSubtitleTrack(url);
+    if (all.length === 0) {
+        subSel.innerHTML = '<option value="">Subtitle tidak tersedia</option>';
+        return;
+    }
+
+    // Route every subtitle through /api/sub (SRT→VTT + CORS)
+    _subtitleList = all.map((s, i) => ({
+        ...s,
+        idx: i,
+        proxied: `/api/sub?url=${encodeURIComponent(s.url)}`,
+    }));
+
+    subSel.innerHTML =
+        `<option value="">CC Off</option>` +
+        _subtitleList.map(s => `<option value="${s.idx}">${s.label}</option>`).join('');
+
+    // Auto-pick Indonesian, then Malay, then English
+    const pick = _subtitleList.find(s => s.lang === 'ind' || s.lang === 'id')
+        || _subtitleList.find(s => s.lang === 'may' || s.lang === 'msa')
+        || _subtitleList.find(s => s.lang === 'eng' || s.lang === 'en');
+
+    if (pick) {
+        subSel.value = String(pick.idx);
+        applySubtitle(pick.idx);
+    }
 }
 
-function addSubtitleTrack(url) {
+function setSubtitle(idxStr) {
     const video = document.getElementById('video');
+    if (!video) return;
+
+    video.querySelectorAll('track').forEach(t => t.remove());
+    for (let i = 0; i < video.textTracks.length; i++) video.textTracks[i].mode = 'disabled';
+    if (_hls) _hls.subtitleTrack = -1;
+
+    if (idxStr === '' || idxStr == null) return; // CC Off
+    applySubtitle(parseInt(idxStr, 10));
+}
+
+function applySubtitle(idx) {
+    const video = document.getElementById('video');
+    const sub = _subtitleList[idx];
+    if (!video || !sub) return;
+
+    video.querySelectorAll('track').forEach(t => t.remove());
+
     const track = document.createElement('track');
     track.kind = 'subtitles';
-    track.label = 'Subtitles';
-    track.srclang = 'en';
-    track.src = url;
+    track.label = sub.label;
+    track.srclang = (sub.lang || 'en').slice(0, 2);
+    track.src = sub.proxied;
     track.default = true;
     video.appendChild(track);
-    
-    // Enable display
+
+    track.addEventListener('load', () => { track.track.mode = 'showing'; });
+    track.addEventListener('error', () => {
+        console.warn('Subtitle failed to load:', sub.label);
+    });
+
     setTimeout(() => {
         for (let i = 0; i < video.textTracks.length; i++) {
             video.textTracks[i].mode = 'showing';
         }
-    }, 500);
+    }, 300);
 }
 
 function setQuality(level) {
