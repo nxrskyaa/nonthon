@@ -709,6 +709,162 @@
             color: var(--text-dim);
         }
         .about-foot b { color: var(--text); }
+
+        /* ===== DRACIN ===== */
+        .dracin-hero {
+            padding: 26px 32px 6px;
+            background: linear-gradient(135deg, rgba(229,9,20,.16), transparent 60%);
+        }
+        .dracin-hero-inner h1 { font-size: 1.75rem; font-weight: 800; letter-spacing: -.5px; }
+        .dracin-hero-inner p { color: var(--text-dim); font-size: .88rem; margin-top: 6px; max-width: 620px; }
+
+        .dracin-search { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+        .dracin-search input {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            color: var(--text);
+            padding: 7px 14px;
+            font-size: .85rem;
+            outline: none;
+            width: 190px;
+        }
+        .dracin-search input:focus { border-color: var(--primary); }
+
+        /* Portrait 2:3 grid, denser than the movie grid because covers are taller */
+        .dracin-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 16px;
+        }
+        .dracin-card { cursor: pointer; transition: transform .18s; }
+        .dracin-card:hover { transform: translateY(-4px); }
+        .dracin-poster {
+            position: relative;
+            aspect-ratio: 2 / 3;
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--surface);
+            box-shadow: var(--shadow);
+        }
+        .dracin-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .dracin-poster.noimg::after {
+            content: '📱';
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem; color: var(--text-dim);
+        }
+        .dracin-eps {
+            position: absolute; top: 8px; left: 8px;
+            background: rgba(0,0,0,.78);
+            color: #fff; font-size: .7rem; font-weight: 700;
+            padding: 3px 8px; border-radius: 50px;
+            backdrop-filter: blur(4px);
+        }
+        .dracin-badge {
+            position: absolute; bottom: 8px; right: 8px;
+            background: rgba(0,0,0,.78);
+            color: #fff; font-size: .66rem; font-weight: 700;
+            padding: 3px 7px; border-radius: 5px;
+            max-width: calc(100% - 16px);
+            backdrop-filter: blur(4px);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .dracin-play {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2.2rem; color: #fff;
+            background: rgba(0,0,0,.35);
+            opacity: 0; transition: opacity .18s;
+        }
+        .dracin-card:hover .dracin-play { opacity: 1; }
+        .dracin-body { padding: 8px 2px 0; }
+        .dracin-title {
+            font-size: .86rem; font-weight: 600; line-height: 1.35;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden;
+            min-height: 2.4em;
+        }
+        .dracin-meta { font-size: .74rem; color: var(--text-dim); margin-top: 3px; }
+
+        .dracin-detail {
+            display: flex; gap: 24px;
+            padding: 26px 32px;
+            align-items: flex-start;
+        }
+        .dracin-detail-poster {
+            width: 200px; flex-shrink: 0;
+            border-radius: 14px; overflow: hidden;
+            box-shadow: var(--shadow);
+            background: var(--surface);
+        }
+        .dracin-detail-poster img { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
+        .dracin-detail-info { flex: 1; min-width: 0; }
+        .dracin-detail-info h1 { font-size: 1.7rem; font-weight: 800; margin-bottom: 10px; }
+
+        .dracin-ep-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+            gap: 8px;
+        }
+        .dracin-ep {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 6px;
+            font-size: .78rem;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            transition: background .15s, border-color .15s;
+        }
+        .dracin-ep:hover { background: var(--surface-hover); border-color: var(--text-dim); }
+        .dracin-ep.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+        /* Portrait stage: tall and centered, the way vertical drama is meant to look */
+        .dracin-player-wrap { max-width: 1100px; margin: 0 auto; padding: 18px 20px 40px; }
+        .dracin-player-top { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+        .dracin-player-title { font-size: 1.05rem; font-weight: 700; }
+        .dracin-stage {
+            position: relative;
+            width: 100%;
+            max-width: 430px;
+            margin: 0 auto;
+            aspect-ratio: 9 / 16;
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,.7);
+        }
+        .dracin-err {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: rgba(0,0,0,.85);
+            color: var(--text-dim);
+            font-size: .9rem; text-align: center; padding: 20px;
+        }
+        .dracin-player-ctrl {
+            display: flex; gap: 8px; justify-content: center;
+            align-items: center; flex-wrap: wrap;
+            margin: 16px auto 8px;
+        }
+        .dracin-player-ctrl .provider-tab:disabled { opacity: .4; cursor: not-allowed; }
+
+        @media (max-width: 768px) {
+            .dracin-hero { padding: 18px 14px 4px; }
+            .dracin-hero-inner h1 { font-size: 1.3rem; }
+            .dracin-search { margin-left: 0; width: 100%; }
+            .dracin-search input { flex: 1; width: auto; }
+            .dracin-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+            .dracin-detail { flex-direction: column; padding: 18px 14px; align-items: center; text-align: center; }
+            .dracin-detail-poster { width: 150px; }
+            .dracin-detail-info .meta-row, .dracin-detail-info .genres { justify-content: center; }
+            .dracin-player-wrap { padding: 12px 12px 32px; }
+            .dracin-stage { max-width: 100%; border-radius: 12px; }
+            .dracin-ep-grid { grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 6px; }
+        }
     </style>
 </head>
 <body>
@@ -720,6 +876,7 @@
         <a id="nav-latest" onclick="navigate('latest')">Terbaru</a>
         <a id="nav-movie" onclick="navigate('movie')">Film</a>
         <a id="nav-tv" onclick="navigate('tv')">Series</a>
+        <a id="nav-dracin" onclick="navigate('dracin')">Dracin</a>
         <a id="nav-trending" onclick="navigate('trending')">Trending</a>
         <div class="nav-dropdown">
             <a id="nav-provider" class="dd-toggle">Platform ▾</a>
@@ -737,47 +894,22 @@
 <div id="app"></div>
 
 <footer>
-    <p><strong>Nonthon</strong> — Streaming tanpa iklan. Source: TMDB + vidbox.vc</p>
-    <p style="margin-top:6px; font-size:0.76rem;">Untuk pakai pribadi. Metadata dari TMDB, video dari vidbox.vc.</p>
-    <p style="margin-top:10px; font-size:0.8rem; font-weight:700; letter-spacing:1px; color:var(--primary);">CREATED BY NxrHunt Labs</p>
+    <p style="font-size:0.8rem; font-weight:700; letter-spacing:1px; color:var(--primary);">CREATED BY NxrHunt Labs</p>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
 <script>
 const TMDB_API = 'https://api.themoviedb.org/3';
-const TMDB_KEY = '8265bd1679663a7ea12ac168da84d2e8'; // public TMDB demo key
+const TMDB_KEY = '8265bd1679663a7ea12ac168da84d2e8';
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w500';
 const TMDB_IMG_ORIG = 'https://image.tmdb.org/t/p/original';
 const TMDB_IMG_SM = 'https://image.tmdb.org/t/p/w300';
-
-// Embed sources discovered from vidbox.vc's own JS bundle (common.e19dae6b.js)
-// Verified working + iframe-embeddable (frame-ancestors * or no X-Frame-Options)
-const SOURCES = [
-    {
-        name: "Server 1",
-        movie: (id) => `https://2embed.stream/embed/movie/${id}`,
-        tv: (id, s, e) => `https://2embed.stream/embed/tv/${id}/${s}/${e}`,
-    },
-    {
-        name: "Server 2",
-        movie: (id) => `https://www.2embed.cc/embed/${id}`,
-        tv: (id, s, e) => `https://www.2embed.cc/embed/tv/${id}/season-${s}/episode-${e}`,
-    },
-    {
-        name: "Server 3",
-        movie: (id) => `https://frembed.hair/api/film.php?id=${id}`,
-        tv: (id, s, e) => `https://frembed.hair/api/serie.php?id=${id}&s=${s}&e=${e}`,
-    },
-];
-
-let currentSourceIdx = 0;
 
 let searchTimer = null;
 let currentView = 'home';
 let currentState = null;
 
-// ===== Streaming Platforms (watch_provider IDs present in vidbox.vc's own catalog) =====
-// Verified against vidbox.vc archived homepage (329 provider IDs) + TMDB /watch/providers
+// ===== Streaming platform catalogs (watch_provider ids) =====
 const PROVIDERS = [
     { group: 'Utama', items: [
         { id: 8,    name: 'Netflix',        logo: '/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg' },
@@ -851,7 +983,7 @@ function navigate(view, data) {
 
     // nav active
     document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
-    const navMap = { home: 'nav-home', latest: 'nav-latest', movie: 'nav-movie', tv: 'nav-tv', trending: 'nav-trending', provider: 'nav-provider', about: 'nav-about' };
+    const navMap = { home: 'nav-home', latest: 'nav-latest', movie: 'nav-movie', tv: 'nav-tv', dracin: 'nav-dracin', dracinDetail: 'nav-dracin', dracinPlayer: 'nav-dracin', trending: 'nav-trending', provider: 'nav-provider', about: 'nav-about' };
     if (navMap[view]) document.getElementById(navMap[view])?.classList.add('active');
 
     switch(view) {
@@ -859,6 +991,9 @@ function navigate(view, data) {
         case 'latest': renderLatest(data); break;
         case 'movie': renderMovieList(); break;
         case 'tv': renderTVList(); break;
+        case 'dracin': renderDracin(data); break;
+        case 'dracinDetail': renderDracinDetail(data); break;
+        case 'dracinPlayer': renderDracinPlayer(data); break;
         case 'trending': renderTrending(data); break;
         case 'search': renderSearch(data); break;
         case 'detail': renderDetail(data); break;
@@ -1125,6 +1260,307 @@ async function renderLatest(opts) {
     }
 }
 
+// ===== DRACIN (drama pendek vertikal) =====
+const DRACIN_SOURCES = [
+    { key: 'ikun', label: 'Utama' },
+    { key: 'ffzy', label: 'Katalog Besar' },
+    { key: 'dbzy', label: 'Alternatif' },
+];
+
+let dracinState = { source: 'ikun', page: 1, items: [], pages: 1, total: 0, q: '' };
+let dracinDetail = null;
+
+function dracinImg(url) {
+    return url ? '/api/dracin-img?u=' + encodeURIComponent(url) : '';
+}
+
+async function dracinApi(params) {
+    const r = await fetch('/api/dracin?' + new URLSearchParams(params));
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || d.error || 'gagal memuat');
+    return d;
+}
+
+async function renderDracin(opts) {
+    const { source = dracinState.source, page = 1, q = '' } = opts || {};
+    const app = document.getElementById('app');
+    const fresh = page === 1;
+
+    if (fresh) dracinState = { source, page, items: [], pages: 1, total: 0, q };
+    else dracinState.page = page;
+
+    if (fresh) {
+        app.innerHTML = `
+            <div class="dracin-hero">
+                <div class="dracin-hero-inner">
+                    <h1>📱 Dracin Shorts</h1>
+                    <p>Drama pendek vertikal — puluhan episode, tiap episode 1–3 menit. Full screen, tanpa iklan.</p>
+                </div>
+            </div>
+            <div class="provider-tabs">
+                ${DRACIN_SOURCES.map(s => `
+                    <button class="provider-tab ${s.key === source ? 'active' : ''}"
+                            onclick="navigate('dracin',{source:'${s.key}'})">${s.label}</button>
+                `).join('')}
+                <div class="dracin-search">
+                    <input type="text" id="dracinSearch" placeholder="Cari judul dracin…"
+                           value="${q.replace(/"/g, '&quot;')}"
+                           onkeydown="if(event.key==='Enter')dracinDoSearch()">
+                    <button class="provider-tab" onclick="dracinDoSearch()">Cari</button>
+                    ${q ? `<button class="provider-tab" onclick="navigate('dracin',{source:'${source}'})">✕ Reset</button>` : ''}
+                </div>
+            </div>
+            <div class="section">
+                <div class="sub" id="dracinCount" style="color:var(--text-dim);font-size:0.85rem;margin-bottom:12px;">Memuat…</div>
+                <div class="dracin-grid" id="dracinGrid"></div>
+                <div id="dracinLoading" class="loading"><div class="loading-spinner"></div>Memuat dracin…</div>
+            </div>
+            <div class="load-more-wrap" id="dracinMore"></div>
+        `;
+    } else {
+        const more = document.getElementById('dracinMore');
+        if (more) more.innerHTML = `<div class="loading"><div class="loading-spinner"></div></div>`;
+    }
+
+    try {
+        const data = q
+            ? await dracinApi({ action: 'search', source, q })
+            : await dracinApi({ action: 'list', source, page });
+
+        dracinState.items = dracinState.items.concat(data.items || []);
+        dracinState.pages = data.pages || 1;
+        dracinState.total = data.total || dracinState.items.length;
+
+        document.getElementById('dracinLoading')?.remove();
+        renderDracinCards('dracinGrid', dracinState.items);
+
+        const c = document.getElementById('dracinCount');
+        if (c) {
+            c.textContent = q
+                ? `${dracinState.items.length} hasil untuk "${q}"`
+                : `${dracinState.total.toLocaleString('id-ID')} judul tersedia`;
+        }
+
+        const more = document.getElementById('dracinMore');
+        if (more) {
+            more.innerHTML = (!q && page < dracinState.pages)
+                ? `<button class="hero-btn" style="background:var(--surface);font-size:0.9rem;"
+                     onclick="navigate('dracin',{source:'${source}',page:${page + 1}})">Muat Lebih Banyak</button>`
+                : (dracinState.items.length ? `<div style="color:var(--text-dim);font-size:0.82rem;">Semua judul sudah dimuat</div>` : '');
+        }
+
+        if (dracinState.items.length === 0) {
+            document.getElementById('dracinGrid').innerHTML =
+                `<div style="color:var(--text-dim);grid-column:1/-1;padding:24px 0;">Tidak ada hasil. Coba sumber lain.</div>`;
+        }
+    } catch (e) {
+        document.getElementById('dracinLoading')?.remove();
+        const more = document.getElementById('dracinMore');
+        if (more) more.innerHTML = `<div style="color:var(--text-dim)">❌ ${e.message} — coba sumber lain.</div>`;
+    }
+}
+
+function dracinDoSearch() {
+    const v = document.getElementById('dracinSearch')?.value.trim();
+    if (!v) return;
+    navigate('dracin', { source: dracinState.source, q: v });
+}
+
+function renderDracinCards(elId, items) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.innerHTML = items.map(it => `
+        <div class="dracin-card" onclick="navigate('dracinDetail',{src:'${it.src}',id:${it.id}})">
+            <div class="dracin-poster">
+                ${it.pic
+                    ? `<img src="${dracinImg(it.pic)}" alt="${escapeAttr(it.title)}" loading="lazy"
+                           onerror="this.parentElement.classList.add('noimg')">`
+                    : ''}
+                <div class="dracin-eps">${it.episodes > 1 ? it.episodes + ' eps' : 'Full'}</div>
+                ${it.remarks ? `<div class="dracin-badge">${escapeHtml(it.remarks)}</div>` : ''}
+                <div class="dracin-play">▶</div>
+            </div>
+            <div class="dracin-body">
+                <div class="dracin-title" title="${escapeAttr(it.titleOrig || it.title)}">${escapeHtml(it.title)}</div>
+                <div class="dracin-meta">${[it.year, it.area].filter(Boolean).join(' • ')}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function escapeAttr(s) { return escapeHtml(s).replace(/`/g, ''); }
+
+async function renderDracinDetail({ src, id }) {
+    const app = document.getElementById('app');
+    app.innerHTML = `<div class="loading"><div class="loading-spinner"></div>Memuat detail…</div>`;
+    try {
+        const d = await dracinApi({ action: 'detail', source: src, id });
+        const it = d.item;
+        dracinDetail = it;
+
+        app.innerHTML = `
+            <div class="dracin-detail">
+                <div class="dracin-detail-poster">
+                    ${it.pic ? `<img src="${dracinImg(it.pic)}" alt="${escapeAttr(it.title)}">` : ''}
+                </div>
+                <div class="dracin-detail-info">
+                    <h1>${escapeHtml(it.title)}</h1>
+                    ${it.titleOrig && it.titleOrig !== it.title
+                        ? `<p class="tagline" style="font-size:0.86rem;">${escapeHtml(it.titleOrig)}</p>` : ''}
+                    <div class="meta-row">
+                        <span class="rating">📱 ${it.episodes} episode</span>
+                        ${it.remarks ? `<span>${escapeHtml(it.remarks)}</span>` : ''}
+                        ${it.year ? `<span>📅 ${escapeHtml(it.year)}</span>` : ''}
+                        ${it.area ? `<span>🌏 ${escapeHtml(it.area)}</span>` : ''}
+                    </div>
+                    ${it.genre ? `<div class="genres"><span class="genre-tag">${escapeHtml(it.genre)}</span></div>` : ''}
+                    <p class="overview">${escapeHtml(it.overview) || 'Tidak ada sinopsis.'}</p>
+                    <button class="play-btn" onclick="navigate('dracinPlayer',{src:'${it.src}',id:${it.id},ep:1})">▶ Nonton Eps 1</button>
+                    <button class="hero-btn" style="background:var(--surface);font-size:0.85rem;padding:10px 20px;margin-left:8px;"
+                            onclick="navigate('dracin',{source:'${it.src}'})">← Kembali</button>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-title">Daftar Episode</div>
+                <div class="dracin-ep-grid">
+                    ${it.epList.map((ep, i) => `
+                        <div class="dracin-ep" onclick="navigate('dracinPlayer',{src:'${it.src}',id:${it.id},ep:${i + 1}})">
+                            ${escapeHtml(ep.label || ('Eps ' + (i + 1)))}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    } catch (e) {
+        app.innerHTML = `<div class="loading">❌ ${e.message}</div>`;
+    }
+}
+
+let _dracinHls = null;
+
+async function renderDracinPlayer({ src, id, ep }) {
+    const app = document.getElementById('app');
+    const epNum = Math.max(1, parseInt(ep, 10) || 1);
+
+    // Reuse the cached detail when it matches, otherwise refetch.
+    let it = dracinDetail;
+    if (!it || it.id !== id || it.src !== src) {
+        app.innerHTML = `<div class="loading"><div class="loading-spinner"></div>Memuat…</div>`;
+        try {
+            const d = await dracinApi({ action: 'detail', source: src, id });
+            it = d.item;
+            dracinDetail = it;
+        } catch (e) {
+            app.innerHTML = `<div class="loading">❌ ${e.message}</div>`;
+            return;
+        }
+    }
+
+    const total = it.epList.length;
+    const idx = Math.min(epNum, total) - 1;
+    const cur = it.epList[idx];
+    if (!cur) {
+        app.innerHTML = `<div class="loading">❌ Episode tidak tersedia.</div>`;
+        return;
+    }
+
+    app.innerHTML = `
+        <div class="dracin-player-wrap">
+            <div class="dracin-player-top">
+                <div class="player-back" onclick="navigate('dracinDetail',{src:'${src}',id:${id}})">← Kembali</div>
+                <div class="dracin-player-title">${escapeHtml(it.title)} — ${escapeHtml(cur.label)}</div>
+            </div>
+            <div class="dracin-stage">
+                <video id="dracinVideo" controls autoplay playsinline
+                       style="width:100%;height:100%;object-fit:contain;background:#000;"></video>
+                <div id="dracinErr" class="dracin-err" style="display:none;">
+                    ⚠️ Episode ini gagal diputar.
+                    <button class="hero-btn" style="font-size:0.82rem;padding:8px 16px;margin-top:10px;"
+                            onclick="navigate('dracinPlayer',{src:'${src}',id:${id},ep:${epNum}})">Coba Lagi</button>
+                </div>
+            </div>
+            <div class="dracin-player-ctrl">
+                <button class="provider-tab" ${idx === 0 ? 'disabled' : ''}
+                        onclick="navigate('dracinPlayer',{src:'${src}',id:${id},ep:${epNum - 1}})">⏮ Sebelumnya</button>
+                <select class="sort-select" style="margin:0;" onchange="navigate('dracinPlayer',{src:'${src}',id:${id},ep:parseInt(this.value)})">
+                    ${it.epList.map((e2, i) => `<option value="${i + 1}" ${i === idx ? 'selected' : ''}>${escapeHtml(e2.label || ('Eps ' + (i + 1)))}</option>`).join('')}
+                </select>
+                <select id="dracinQuality" class="sort-select" style="margin:0;display:none;"
+                        onchange="dracinSetQuality(this.value)"></select>
+                <button class="provider-tab" ${idx >= total - 1 ? 'disabled' : ''}
+                        onclick="navigate('dracinPlayer',{src:'${src}',id:${id},ep:${epNum + 1}})">Selanjutnya ⏭</button>
+            </div>
+            <div class="section" style="padding-top:4px;">
+                <div class="section-title" style="font-size:1rem;">Episode Lain</div>
+                <div class="dracin-ep-grid">
+                    ${it.epList.map((e2, i) => `
+                        <div class="dracin-ep ${i === idx ? 'active' : ''}"
+                             onclick="navigate('dracinPlayer',{src:'${src}',id:${id},ep:${i + 1}})">
+                            ${escapeHtml(e2.label || ('Eps ' + (i + 1)))}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+
+    const video = document.getElementById('dracinVideo');
+    const errBox = document.getElementById('dracinErr');
+
+    // Media CDNs for these sources send Access-Control-Allow-Origin: *,
+    // so hls.js can load the playlist directly with no relay.
+    if (window.Hls && Hls.isSupported()) {
+        if (_dracinHls) { try { _dracinHls.destroy(); } catch (e) {} }
+        _dracinHls = new Hls({
+            enableWorker: true,
+            maxBufferLength: 20,
+            backBufferLength: 20,
+            abrEwmaDefaultEstimate: 1200000,
+            startFragPrefetch: true,
+            startLevel: -1,
+        });
+        _dracinHls.loadSource(cur.url);
+        _dracinHls.attachMedia(video);
+        _dracinHls.on(Hls.Events.MANIFEST_PARSED, (e, data) => {
+            const q = document.getElementById('dracinQuality');
+            if (q && data.levels.length > 1) {
+                q.innerHTML = '<option value="-1">Auto</option>' +
+                    data.levels.map((l, i) => `<option value="${i}">${l.height || '?'}p</option>`).join('');
+                q.style.display = 'inline-block';
+            }
+            video.play().catch(() => {});
+        });
+        _dracinHls.on(Hls.Events.ERROR, (e, data) => {
+            if (!data.fatal) return;
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                setTimeout(() => { try { _dracinHls.startLoad(); } catch (x) {} }, 1000);
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                _dracinHls.recoverMediaError();
+            } else {
+                errBox.style.display = 'block';
+            }
+        });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = cur.url;
+        video.play().catch(() => {});
+    } else {
+        errBox.style.display = 'block';
+    }
+
+    // Auto-advance to the next episode, the way short-drama apps behave.
+    video.addEventListener('ended', () => {
+        if (idx < total - 1) navigate('dracinPlayer', { src, id, ep: epNum + 1 });
+    });
+}
+
+function dracinSetQuality(level) {
+    if (_dracinHls) _dracinHls.currentLevel = parseInt(level, 10);
+}
+
 // ===== About =====
 function renderAbout() {
     const app = document.getElementById('app');
@@ -1133,13 +1569,13 @@ function renderAbout() {
             <div class="about-card">
                 <div class="about-brand">CREATED BY NxrHunt Labs</div>
                 <p class="about-lead">
-                    <strong>Nonthon</strong> — streaming film &amp; series tanpa iklan, tanpa popup,
-                    tanpa redirect. Player HLS native, subtitle multi-bahasa, katalog selalu
-                    up-to-date langsung dari TMDB.
+                    <strong>Nonthon</strong> — streaming film, series &amp; drama pendek tanpa iklan,
+                    tanpa popup, tanpa redirect. Player HLS native, subtitle multi-bahasa,
+                    katalog selalu up-to-date.
                 </p>
                 <div class="about-grid">
-                    <div class="about-item"><span>🎬</span><div><b>Katalog Live</b><br>Metadata &amp; rilis terbaru diambil real-time dari TMDB.</div></div>
-                    <div class="about-item"><span>🚫</span><div><b>Nol Iklan</b><br>Stream m3u8 diekstrak server-side, diputar di player sendiri.</div></div>
+                    <div class="about-item"><span>🎬</span><div><b>Katalog Live</b><br>Metadata &amp; rilis terbaru diambil real-time.</div></div>
+                    <div class="about-item"><span>🚫</span><div><b>Nol Iklan</b><br>Stream diekstrak server-side, diputar di player sendiri.</div></div>
                     <div class="about-item"><span>💬</span><div><b>Subtitle 30+ Bahasa</b><br>Termasuk Indonesia, auto-pilih saat tersedia.</div></div>
                     <div class="about-item"><span>🔐</span><div><b>Akses Terbatas</b><br>Situs dilindungi gerbang sandi. Sesi 12 jam, cookie HttpOnly.</div></div>
                     <div class="about-item"><span>🆕</span><div><b>Sortir Terbaru</b><br>Urutkan berdasar rilis terbaru, trending, rating, atau populer.</div></div>
@@ -1147,9 +1583,6 @@ function renderAbout() {
                 </div>
                 <div class="about-foot">
                     <div>Dibangun oleh <b>NxrHunt Labs</b> · untuk penggunaan pribadi</div>
-                    <div style="margin-top:6px;font-size:0.78rem;color:var(--text-dim);">
-                        Metadata: TMDB · Subtitle: OpenSubtitles · Player: HLS.js
-                    </div>
                     <button class="hero-btn" style="margin-top:16px;background:var(--surface);font-size:0.85rem;padding:10px 20px;"
                             onclick="logout()">🚪 Keluar / Lock Situs</button>
                 </div>
@@ -1406,7 +1839,7 @@ async function renderTrending(opts) {
             <div class="provider-header">
                 <div>
                     <h1>🔥 Trending ${winLabel}</h1>
-                    <div class="sub">Peringkat live dari TMDB • diperbarui ${todayISO()}</div>
+                    <div class="sub">Peringkat live • diperbarui ${todayISO()}</div>
                 </div>
             </div>
             <div class="provider-tabs">

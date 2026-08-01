@@ -31,6 +31,8 @@ const routes = {
     '/api/stream': './api/stream.js',
     '/api/subs': './api/subs.js',
     '/api/sub': './api/sub.js',
+    '/api/dracin': './api/dracin.js',
+    '/api/dracin-img': './api/dracin-img.js',
 };
 
 function shim(res) {
