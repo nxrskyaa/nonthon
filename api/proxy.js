@@ -1,6 +1,5 @@
 // HLS Proxy - relays m3u8 + segments through our server to bypass browser CORS
-// Usage: /api/proxy?url=<encoded_url>
-
+// Only rewrites relative paths (/proxy.php, /stream_proxy.php) to absolute proxied URLs
 export default async function handler(req, res) {
     const { url } = req.query;
 
@@ -9,70 +8,80 @@ export default async function handler(req, res) {
     }
 
     const targetUrl = decodeURIComponent(url);
+    const origin = new URL(targetUrl).origin;
 
     try {
         const resp = await fetch(targetUrl, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://rozgarlelo.modiplay.xyz/',
-                'Origin': 'https://rozgarlelo.modiplay.xyz',
+                'Referer': origin + '/',
             },
         });
 
         const contentType = resp.headers.get('content-type') || 'application/octet-stream';
         const buffer = Buffer.from(await resp.arrayBuffer());
 
-        // Rewrite relative URLs in m3u8 playlists to go through our proxy
         let body = buffer;
 
         if (contentType.includes('mpegurl') || targetUrl.includes('.m3u8')) {
             let text = buffer.toString('utf-8');
             const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
-            const originUrl = new URL(targetUrl).origin;
 
-            // Rewrite absolute and relative proxy.php URLs
-            // Pattern 1: /proxy.php?... (relative to modiplay origin)
-            text = text.replace(/\/proxy\.php\?([^\s"'<>\\]*)/g, (match, qs) => {
-                const fullUrl = `https://rozgarlelo.modiplay.xyz${match}`;
-                return `/api/proxy?url=${encodeURIComponent(fullUrl)}`;
-            });
-
-            // Pattern 2: /stream_proxy.php?... (relative to modiplay origin)  
-            text = text.replace(/\/stream_proxy\.php\?([^\s"'<>\\]*)/g, (match, qs) => {
-                const fullUrl = `https://rozgarlelo.modiplay.xyz${match}`;
-                return `/api/proxy?url=${encodeURIComponent(fullUrl)}`;
-            });
-
-            // Pattern 3: relative .m3u8 or .ts URLs
-            text = text.replace(/(?!\/api\/proxy\?)(["']?)(?!https?:\/\/)([^\s"'<>\\]+\.m3u8[^\s"'<>\\]*)/g, (match, quote, path) => {
-                let fullUrl;
-                if (path.startsWith('/')) {
-                    fullUrl = originUrl + path;
-                } else {
-                    fullUrl = baseUrl + path;
+            // ONLY rewrite lines that are relative paths (start with /)
+            // These are the sub-playlist and segment URLs
+            // DO NOT touch anything that's already encoded (contains %2F)
+            const lines = text.split('\n').map(line => {
+                let trimmed = line.trim();
+                
+                // Skip empty lines and comments (but not URI= lines)
+                if (!trimmed || trimmed.startsWith('#EXT')) {
+                    // Handle URI= attribute inside #EXT-X-MEDIA and #EXT-X-STREAM-INF
+                    if (trimmed.includes('URI=/proxy.php') || trimmed.includes('URI=/stream_proxy.php')) {
+                        return line.replace(
+                            /URI=(\/(?:proxy|stream_proxy)\.php\?[^\s"',]*)/g,
+                            (match, path) => {
+                                const fullUrl = origin + path;
+                                return 'URI=' + '/api/proxy?url=' + encodeURIComponent(fullUrl);
+                            }
+                        );
+                    }
+                    // Handle URI=https://rozgarlelo... (absolute, leave as-is if already proxied, otherwise rewrite)
+                    if (trimmed.includes('URI=https://rozgarlelo.modiplay.xyz')) {
+                        return line.replace(
+                            /URI=(https:\/\/rozgarlelo\.modiplay\.xyz\/(?:proxy|stream_proxy)\.php\?[^\s"',]*)/g,
+                            (match, absUrl) => 'URI=' + '/api/proxy?url=' + encodeURIComponent(absUrl)
+                        );
+                    }
+                    return line;
                 }
-                return `/api/proxy?url=${encodeURIComponent(fullUrl)}`;
-            });
 
-            // Pattern 4: relative .ts/.aac segment URLs
-            text = text.replace(/(?!\/api\/proxy\?)(["']?)(?!https?:\/\/)([^\s"'<>\\]+\.(?:ts|aac|mp4)[^\s"'<>\\]*)/g, (match, quote, path) => {
-                let fullUrl;
-                if (path.startsWith('/')) {
-                    fullUrl = originUrl + path;
-                } else {
-                    fullUrl = baseUrl + path;
+                // This is a URL line (relative path to a sub-playlist or segment)
+                // Only rewrite if it starts with / (relative to origin)
+                if (trimmed.startsWith('/proxy.php') || trimmed.startsWith('/stream_proxy.php')) {
+                    const fullUrl = origin + trimmed;
+                    return '/api/proxy?url=' + encodeURIComponent(fullUrl);
                 }
-                return `/api/proxy?url=${encodeURIComponent(fullUrl)}`;
+
+                // Relative without leading /
+                if (!trimmed.startsWith('http') && !trimmed.startsWith('/api/')) {
+                    let fullUrl;
+                    if (trimmed.startsWith('/')) {
+                        fullUrl = origin + trimmed;
+                    } else {
+                        fullUrl = baseUrl + trimmed;
+                    }
+                    return '/api/proxy?url=' + encodeURIComponent(fullUrl);
+                }
+
+                return line;
             });
 
-            body = text;
+            body = lines.join('\n');
         }
 
-        // Set permissive CORS + cache
         res.setHeader('Content-Type', contentType);
         res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=300');
         res.setHeader('Access-Control-Allow-Origin', '*');
-
         res.status(200).send(body);
 
     } catch (err) {
