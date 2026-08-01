@@ -57,7 +57,9 @@ export default async function handler(req, res) {
         if (buf.length > MAX_BYTES) return res.status(413).end();
 
         res.setHeader('Content-Type', ct);
-        res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+        // Private, not public: a shared edge cache would serve these to
+        // anonymous callers and defeat the session check on this route.
+        res.setHeader('Cache-Control', 'private, max-age=604800, immutable');
         return res.status(200).send(buf);
     } catch {
         return res.status(502).end();

@@ -98,7 +98,42 @@ async function main() {
     check('app has About page', app.includes('renderAbout') && app.includes('CREATED BY NxrHunt Labs'));
     check('app never embeds plaintext password', !passwords.some(p => app.includes(p)));
 
-    // 7. Tampered cookie rejected.
+    // --- edge cache must never serve an authed response to an anonymous caller ---
+    // Regression guard: `s-maxage` on an authenticated route let Vercel's shared
+    // cache hand /api/subs to anonymous callers. Warm each route WITH a session,
+    // then immediately request the identical URL WITHOUT one.
+    {
+        const urls = [
+            '/api/subs?type=movie&id=634649',
+            '/api/dracin?action=list&source=ikun&page=1',
+        ];
+        for (const u of urls) {
+            const warm = await fetch(base + u, { headers: { cookie: firstCookie } });
+            await warm.text();
+            const cold = await fetch(base + u);
+            const body = await cold.text();
+            check('no edge-cache leak on ' + u.split('?')[0],
+                cold.status === 401,
+                `warm=${warm.status} cold=${cold.status}` +
+                (cold.status === 200 ? ' LEAKED: ' + body.slice(0, 60) : ''));
+        }
+        // Cover relay too (needs a real cover URL).
+        const dl = await fetch(base + '/api/dracin?action=list&source=ikun&page=1', {
+            headers: { cookie: firstCookie },
+        });
+        const dj = await dl.json();
+        const pic = dj.items?.[0]?.pic;
+        if (pic) {
+            const iu = '/api/dracin-img?u=' + encodeURIComponent(pic);
+            const w = await fetch(base + iu, { headers: { cookie: firstCookie } });
+            await w.arrayBuffer();
+            const c = await fetch(base + iu);
+            check('no edge-cache leak on /api/dracin-img', c.status === 401,
+                `warm=${w.status} cold=${c.status}`);
+        }
+    }
+
+    // --- Tampered cookie rejected ---
     const tampered = firstCookie.replace(/.$/, m => (m === 'A' ? 'B' : 'A'));
     const r3 = await fetch(base + '/', { headers: { cookie: tampered } });
     const t = await r3.text();

@@ -91,7 +91,10 @@ export default async function handler(req, res) {
             rank(a.lang) - rank(b.lang) || a.label.localeCompare(b.label)
         );
 
-        res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=600');
+        // MUST stay private: a shared (s-maxage) cache would let Vercel's edge
+        // serve this authenticated response to anonymous callers, bypassing the
+        // session check entirely.
+        res.setHeader('Cache-Control', 'private, max-age=3600');
         return res.status(200).json({
             success: true,
             imdb,
