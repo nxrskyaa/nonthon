@@ -55,7 +55,7 @@ export default async function handler(req, res) {
         let streamUrl = null;
         
         // Try directSrc (direct CDN URL, no proxy, no ads)
-        const directMatch = playerHtml.match(/var\s+directSrc\s*=\s*"(https?:[^"]+master\.m3u8)"/);
+        const directMatch = playerHtml.match(/var\s+directSrc\s*=\s*"(https?:[^"]+master\.m3u8[^"]*)"/);
         if (directMatch) {
             streamUrl = directMatch[1].replace(/\\\//g, '/');
         }
