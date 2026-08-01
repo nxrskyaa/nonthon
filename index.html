@@ -526,6 +526,7 @@
     <p style="margin-top:6px; font-size:0.76rem;">Untuk pakai pribadi. Metadata dari TMDB, video dari vidbox.vc.</p>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
 <script>
 const TMDB_API = 'https://api.themoviedb.org/3';
 const TMDB_KEY = '8265bd1679663a7ea12ac168da84d2e8'; // public TMDB demo key
@@ -950,53 +951,104 @@ async function renderPlayer({type, id, season, episode}) {
         }
     } catch(e) {}
 
-    const source = SOURCES[currentSourceIdx];
-    const embedUrl = type === 'movie'
-        ? source.movie(id)
-        : source.tv(id, season || 1, episode || 1);
-
     app.innerHTML = `
         <div class="player-wrap">
             <div class="player-container">
                 <div class="player-back" onclick="navigate('detail', {type:'${type}', id:${id}${type==='tv'?`, season:${season||1}, episode:${episode||1}`:''}})">← Kembali</div>
                 <div class="player-title">${title}</div>
-                <div class="server-bar">
-                    <div class="server-label">Server:</div>
-                    ${SOURCES.map((s, i) => `<button class="server-btn ${i === currentSourceIdx ? 'active' : ''}" onclick="switchServer(${i})">${s.name}</button>`).join('')}
-                    ${type === 'movie' ? `<a class="server-btn external-btn" href="${source.movie(id)}" target="_blank">↗ Buka di Tab Baru</a>` : ''}
+                <div id="player-loading" class="loading">
+                    <div class="loading-spinner"></div>
+                    Mengambil stream...
                 </div>
-                <div class="player-frame-wrap">
-                    <iframe id="playerFrame" src="${embedUrl}" allowfullscreen frameborder="0"
-                        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                        referrerpolicy="origin"
-                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
-                    ></iframe>
-                </div>
-                <div class="player-hint">💡 Kalau video ga muncul, coba ganti server di atas. Beberapa server butuh klik tombol play dulu.</div>
-                ${type === 'tv' ? `
-                    <div style="margin-top:16px; display:flex; gap:8px;">
-                        <button class="hero-btn" style="background:var(--surface);font-size:0.85rem;padding:10px 20px;" onclick="prevEpisode(${id}, ${season}, ${episode})">⏮ Epsiode Sebelumnya</button>
-                        <button class="hero-btn" style="background:var(--surface);font-size:0.85rem;padding:10px 20px;" onclick="nextEpisode(${id}, ${season}, ${episode})">Episode Selanjutnya ⏭</button>
+                <div id="player-area" style="display:none;">
+                    <div class="player-frame-wrap" style="background:#000;">
+                        <video id="video" controls autoplay playsinline 
+                            style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;background:#000;">
+                        </video>
                     </div>
-                ` : ''}
+                </div>
+                <div id="player-error" style="display:none;padding:20px;text-align:center;">
+                    <p style="color:var(--text-dim);margin-bottom:12px;">⚠️ Stream tidak tersedia untuk judul ini.</p>
+                    <button class="hero-btn" style="font-size:0.85rem;padding:10px 20px;" onclick="retryPlayer()">Coba Lagi</button>
+                </div>
+                <div id="player-controls" style="display:none;margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">
+                    ${type === 'tv' ? `
+                        <button class="hero-btn" style="background:var(--surface);font-size:0.85rem;padding:10px 20px;" onclick="prevEpisode(${id}, ${season}, ${episode})">⏮ Episode Sebelumnya</button>
+                        <button class="hero-btn" style="background:var(--surface);font-size:0.85rem;padding:10px 20px;" onclick="nextEpisode(${id}, ${season}, ${episode})">Episode Selanjutnya ⏭</button>
+                    ` : ''}
+                </div>
             </div>
         </div>
     `;
+
+    await loadStream(type, id, season, episode);
 }
 
-function switchServer(idx) {
-    currentSourceIdx = idx;
-    const source = SOURCES[idx];
+async function loadStream(type, id, season, episode) {
+    const loading = document.getElementById('player-loading');
+    const area = document.getElementById('player-area');
+    const errDiv = document.getElementById('player-error');
+    const controls = document.getElementById('player-controls');
+
+    try {
+        const params = new URLSearchParams({ type, id });
+        if (type === 'tv') {
+            params.set('s', season || 1);
+            params.set('e', episode || 1);
+        }
+        
+        const resp = await fetch(`/api/stream?${params}`);
+        const data = await resp.json();
+
+        if (!data.success) throw new Error(data.error || 'Unknown error');
+
+        loading.style.display = 'none';
+        area.style.display = 'block';
+        controls.style.display = 'flex';
+
+        const video = document.getElementById('video');
+        const streamUrl = data.streamUrl;
+
+        // Use HLS.js for m3u8 streams
+        if (window.Hls && Hls.isSupported()) {
+            const hls = new Hls({
+                enableWorker: true,
+                lowLatencyMode: false,
+                backBufferLength: 90,
+                maxBufferLength: 120,
+            });
+            hls.loadSource(streamUrl);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(()=>{}));
+            hls.on(Hls.Events.ERROR, (event, data) => {
+                if (data.fatal) {
+                    console.error('HLS fatal:', data);
+                    // Try recovering
+                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+                    else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+                }
+            });
+            window._currentHls = hls;
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Native HLS (Safari/iOS)
+            video.src = streamUrl;
+            video.play().catch(()=>{});
+        } else {
+            throw new Error('HLS not supported');
+        }
+
+    } catch (err) {
+        console.error('Stream error:', err);
+        loading.style.display = 'none';
+        area.style.display = 'none';
+        controls.style.display = 'none';
+        errDiv.style.display = 'block';
+    }
+}
+
+function retryPlayer() {
     const { type, id, season, episode } = currentState;
-    const embedUrl = type === 'movie'
-        ? source.movie(id)
-        : source.tv(id, season || 1, episode || 1);
-    const frame = document.getElementById('playerFrame');
-    if (frame) frame.src = embedUrl;
-    // update active button
-    document.querySelectorAll('.server-btn').forEach((b, i) => {
-        if (i < SOURCES.length) b.classList.toggle('active', i === idx);
-    });
+    navigate('player', { type, id, season, episode });
 }
 
 async function prevEpisode(id, s, e) {
