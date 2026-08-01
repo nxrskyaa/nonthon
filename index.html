@@ -66,6 +66,106 @@
             transition: color .2s;
         }
         nav .nav-links a:hover, nav .nav-links a.active { color: var(--text); }
+
+        /* Provider dropdown */
+        .nav-dropdown { position: relative; }
+        .dd-toggle { user-select: none; }
+        .dd-menu {
+            display: none;
+            position: absolute;
+            top: 28px;
+            left: -12px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 8px;
+            min-width: 460px;
+            max-height: 70vh;
+            overflow-y: auto;
+            z-index: 1200;
+        }
+        .dd-menu.open { display: block; }
+        .dd-group-title {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-dim);
+            padding: 8px 8px 4px;
+            font-weight: 700;
+        }
+        .dd-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(130px, 1fr));
+            gap: 4px;
+        }
+        .dd-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.84rem;
+            color: var(--text-dim);
+            transition: background .15s, color .15s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .dd-item:hover { background: var(--surface-hover); color: var(--text); }
+        .dd-item.active { background: var(--primary); color: #fff; }
+        .dd-item img {
+            width: 22px; height: 22px;
+            border-radius: 5px;
+            object-fit: cover;
+            flex-shrink: 0;
+            background: var(--border);
+        }
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 1.4rem;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+
+        /* Provider page header */
+        .provider-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 24px 32px 4px;
+        }
+        .provider-header img {
+            width: 54px; height: 54px;
+            border-radius: 12px;
+            object-fit: cover;
+            box-shadow: var(--shadow);
+        }
+        .provider-header h1 { font-size: 1.7rem; font-weight: 800; }
+        .provider-header .sub { font-size: 0.85rem; color: var(--text-dim); }
+        .provider-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 12px 32px 0;
+            flex-wrap: wrap;
+        }
+        .provider-tab {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            border-radius: 50px;
+            padding: 7px 18px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .provider-tab:hover { background: var(--surface-hover); color: var(--text); }
+        .provider-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .load-more-wrap { text-align: center; padding: 8px 32px 32px; }
         nav .search-wrap {
             margin-left: auto;
             position: relative;
@@ -476,10 +576,35 @@
 
         /* Responsive */
         @media (max-width: 768px) {
-            nav { padding: 12px 14px; gap: 12px; }
-            nav .nav-links { display: none; }
-            nav .search-wrap input { width: 160px; }
-            nav .search-wrap input:focus { width: 200px; }
+            nav { padding: 12px 14px; gap: 10px; flex-wrap: wrap; }
+            nav .nav-links {
+                display: none;
+                order: 3;
+                width: 100%;
+                flex-direction: column;
+                gap: 2px;
+                padding-top: 8px;
+            }
+            nav .nav-links.mobile-open { display: flex; }
+            nav .nav-links a { padding: 8px 2px; font-size: 0.95rem; }
+            .mobile-menu-btn { display: block; order: 2; margin-left: auto; }
+            nav .search-wrap { margin-left: 0; flex: 1; }
+            nav .search-wrap input { width: 100%; }
+            nav .search-wrap input:focus { width: 100%; }
+            .nav-dropdown { position: static; }
+            .dd-menu {
+                position: static;
+                min-width: 0;
+                width: 100%;
+                max-height: 45vh;
+                margin-top: 4px;
+            }
+            .dd-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .provider-header { padding: 18px 14px 4px; }
+            .provider-header img { width: 42px; height: 42px; }
+            .provider-header h1 { font-size: 1.25rem; }
+            .provider-tabs { padding: 10px 14px 0; }
+            .load-more-wrap { padding: 8px 14px 28px; }
             .section { padding: 16px 14px; }
             .hero { height: 50vh; min-height: 300px; }
             .hero-content { left: 16px; right: 16px; bottom: 24px; }
@@ -512,7 +637,12 @@
         <a id="nav-movie" onclick="navigate('movie')">Film</a>
         <a id="nav-tv" onclick="navigate('tv')">Series</a>
         <a id="nav-trending" onclick="navigate('trending')">Trending</a>
+        <div class="nav-dropdown">
+            <a id="nav-provider" class="dd-toggle">Platform ▾</a>
+            <div class="dd-menu" id="providerMenu"></div>
+        </div>
     </div>
+    <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Menu">☰</button>
     <div class="search-wrap">
         <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
         <input type="text" id="searchInput" placeholder="Cari film atau series..." oninput="handleSearch(event)">
@@ -560,6 +690,54 @@ let searchTimer = null;
 let currentView = 'home';
 let currentState = null;
 
+// ===== Streaming Platforms (watch_provider IDs present in vidbox.vc's own catalog) =====
+// Verified against vidbox.vc archived homepage (329 provider IDs) + TMDB /watch/providers
+const PROVIDERS = [
+    { group: 'Utama', items: [
+        { id: 8,    name: 'Netflix',        logo: '/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg' },
+        { id: 337,  name: 'Disney+',        logo: '/97yvRBw1GzX7fXprcF80er19ot.jpg' },
+        { id: 9,    name: 'Prime Video',    logo: '/pvske1MyAoymrs5bguRfVqYiM9a.jpg' },
+        { id: 1899, name: 'HBO Max',        logo: '/jbe4gVSfRlbPTdESXhEKpornsfu.jpg' },
+        { id: 350,  name: 'Apple TV+',      logo: '/mcbz1LgtErU9p4UdbZ0rG6RTWHX.jpg' },
+        { id: 15,   name: 'Hulu',           logo: '/bxBlRPEPpMVDc4jMhSrTf2339DW.jpg' },
+    ]},
+    { group: 'Populer', items: [
+        { id: 2616, name: 'Paramount+',     logo: '/5wym1C0jAvJeGirPdgVpcW0CCuy.jpg' },
+        { id: 386,  name: 'Peacock',        logo: '/2aGrp1xw3qhwCYvNGAJZPdjfeeX.jpg' },
+        { id: 283,  name: 'Crunchyroll',    logo: '/fzN5Jok5Ig1eJ7gyNGoMhnLSCfh.jpg' },
+        { id: 11,   name: 'MUBI',           logo: '/x570VpH2C9EKDf1riP83rYc5dnL.jpg' },
+        { id: 344,  name: 'Rakuten Viki',   logo: '/73uV3YooOA8gD9YQTXFj2XakZWA.jpg' },
+        { id: 581,  name: 'iQIYI',          logo: '/c4eVkfMna2VzHzZ8N2vWXUnMrlD.jpg' },
+    ]},
+    { group: 'Gratis', items: [
+        { id: 300,  name: 'Pluto TV',       logo: '/dB8G41Q6tSL5NBisrIeqByfepBc.jpg' },
+        { id: 538,  name: 'Plex',           logo: '/vLZKlXUNDcZR7ilvfY9Wr9k80FZ.jpg' },
+        { id: 192,  name: 'YouTube',        logo: '/pTnn5JwWr4p3pG8H6VrpiQo7Vs0.jpg' },
+        { id: 613,  name: 'Prime (Free)',   logo: '/gZlCYHPx9a0TRUCEeTvHXBf9ibX.jpg' },
+        { id: 457,  name: 'ViX',            logo: '/jwRPknT20dfU1GeVqbcDXFyvtdG.jpg' },
+        { id: 638,  name: 'Public Domain',  logo: '/aN0Y2BNZQBH91JkVOeLTs8IhQrH.jpg' },
+    ]},
+    { group: 'Toko / Sewa', items: [
+        { id: 2,    name: 'Apple TV Store', logo: '/SPnB1qiCkYfirS2it3hZORwGVn.jpg' },
+        { id: 3,    name: 'Google Play',    logo: '/8z7rC8uIDaTM91X0ZfkRf04ydj2.jpg' },
+        { id: 10,   name: 'Amazon Video',   logo: '/qR6FKvnPBx2O37FDg8PNM7efwF3.jpg' },
+        { id: 7,    name: 'Fandango',       logo: '/oIXE9vJdkilIxCLAtlbtiqewgvn.jpg' },
+        { id: 190,  name: 'Curiosity',      logo: '/oR1aNm1Qu9jQBkW4VrGPWhqbC3P.jpg' },
+    ]},
+];
+const PROVIDER_MAP = {};
+PROVIDERS.forEach(g => g.items.forEach(p => { PROVIDER_MAP[p.id] = p; }));
+const TMDB_LOGO = 'https://image.tmdb.org/t/p/w92';
+
+// Verified via TMDB /discover: these providers return real results for watch_region=ID.
+// Everything else queries US directly (much larger catalog); ID→US fallback also runs at runtime.
+const REGION_ID_OK = new Set([8, 1899, 283, 350, 11, 538]);
+
+// Verified empty: TMDB has no series catalog for these provider IDs in any region
+const NO_TV = new Set([638]);
+
+let providerState = { id: null, tab: 'movie', page: 1, results: [], total: 0 };
+
 // ===== API =====
 async function tmdb(path, params = {}) {
     const url = new URL(TMDB_API + path);
@@ -582,11 +760,13 @@ async function tmdb(path, params = {}) {
 function navigate(view, data) {
     currentView = view;
     window.scrollTo(0, 0);
+    closeProviderMenu();
+    document.querySelector('.nav-links')?.classList.remove('mobile-open');
 
     // nav active
     document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
-    const navMap = { home: 'nav-home', movie: 'nav-movie', tv: 'nav-tv', trending: 'nav-trending' };
-    if (navMap[view]) document.getElementById(navMap[view]).classList.add('active');
+    const navMap = { home: 'nav-home', movie: 'nav-movie', tv: 'nav-tv', trending: 'nav-trending', provider: 'nav-provider' };
+    if (navMap[view]) document.getElementById(navMap[view])?.classList.add('active');
 
     switch(view) {
         case 'home': renderHome(); break;
@@ -596,6 +776,146 @@ function navigate(view, data) {
         case 'search': renderSearch(data); break;
         case 'detail': renderDetail(data); break;
         case 'player': renderPlayer(data); break;
+        case 'provider': renderProvider(data); break;
+    }
+}
+
+// ===== Provider dropdown =====
+function buildProviderMenu() {
+    const menu = document.getElementById('providerMenu');
+    if (!menu) return;
+    menu.innerHTML = PROVIDERS.map(g => `
+        <div class="dd-group-title">${g.group}</div>
+        <div class="dd-grid">
+            ${g.items.map(p => `
+                <div class="dd-item" data-pid="${p.id}" onclick="navigate('provider', {id:${p.id}})">
+                    <img src="${TMDB_LOGO + p.logo}" alt="${p.name}" loading="lazy"
+                         onerror="this.style.visibility='hidden'">
+                    <span>${p.name}</span>
+                </div>
+            `).join('')}
+        </div>
+    `).join('');
+}
+
+function toggleProviderMenu(e) {
+    if (e) e.stopPropagation();
+    document.getElementById('providerMenu')?.classList.toggle('open');
+}
+function closeProviderMenu() {
+    document.getElementById('providerMenu')?.classList.remove('open');
+}
+function toggleMobileMenu() {
+    document.querySelector('.nav-links')?.classList.toggle('mobile-open');
+}
+
+// ===== Provider page =====
+async function renderProvider({id, tab, page}) {
+    const p = PROVIDER_MAP[id];
+    if (!p) return navigate('home');
+
+    const isNewProvider = providerState.id !== id;
+    providerState.id = id;
+    providerState.tab = tab || (isNewProvider ? 'movie' : providerState.tab);
+    providerState.page = page || 1;
+    if (providerState.page === 1) providerState.results = [];
+
+    // mark active in dropdown
+    document.querySelectorAll('.dd-item').forEach(el =>
+        el.classList.toggle('active', el.dataset.pid === String(id)));
+
+    const app = document.getElementById('app');
+    const kind = providerState.tab === 'tv' ? 'tv' : 'movie';
+
+    if (providerState.page === 1) {
+        app.innerHTML = `
+            <div class="provider-header">
+                <img src="${TMDB_LOGO + p.logo}" alt="${p.name}" onerror="this.style.display='none'">
+                <div>
+                    <h1>${p.name}</h1>
+                    <div class="sub" id="providerCount">Memuat katalog...</div>
+                </div>
+            </div>
+            <div class="provider-tabs">
+                <button class="provider-tab ${kind==='movie'?'active':''}" onclick="navigate('provider',{id:${id},tab:'movie'})">🎬 Film</button>
+                <button class="provider-tab ${kind==='tv'?'active':''}" onclick="navigate('provider',{id:${id},tab:'tv'})">📺 Series</button>
+            </div>
+            <div class="section">
+                <div class="card-grid" id="providerGrid"></div>
+                <div class="loading" id="providerLoading"><div class="loading-spinner"></div>Memuat...</div>
+            </div>
+            <div class="load-more-wrap" id="loadMoreWrap"></div>
+        `;
+    } else {
+        document.getElementById('loadMoreWrap').innerHTML =
+            `<div class="loading"><div class="loading-spinner"></div></div>`;
+    }
+
+    try {
+        // Skip TV tab entirely for providers with no series catalog
+        if (kind === 'tv' && NO_TV.has(id)) {
+            document.getElementById('providerLoading')?.remove();
+            const g = document.getElementById('providerGrid');
+            if (g) g.innerHTML = `<div style="color:var(--text-dim);grid-column:1/-1;padding:20px 0;">Platform ini tidak punya katalog series. Coba tab Film.</div>`;
+            const c = document.getElementById('providerCount');
+            if (c) c.textContent = 'Hanya katalog film';
+            return;
+        }
+
+        // Region ID for providers with local coverage, otherwise US (much bigger catalog)
+        const region = REGION_ID_OK.has(id) ? 'ID' : 'US';
+        let data = await tmdb(`/discover/${kind}`, {
+            watch_region: region,
+            with_watch_providers: id,
+            sort_by: 'popularity.desc',
+            page: providerState.page,
+        });
+
+        // Fallback to US if the ID region returns nothing
+        if ((!data.results || data.results.length === 0) && region === 'ID') {
+            data = await tmdb(`/discover/${kind}`, {
+                watch_region: 'US',
+                with_watch_providers: id,
+                sort_by: 'popularity.desc',
+                page: providerState.page,
+            });
+        }
+
+        const items = (data.results || []).map(r => { r.media_type = kind; return r; });
+        providerState.results = providerState.results.concat(items);
+        providerState.total = data.total_results || 0;
+
+        document.getElementById('providerLoading')?.remove();
+        renderCards('providerGrid', providerState.results);
+
+        const countEl = document.getElementById('providerCount');
+        if (countEl) {
+            countEl.textContent = providerState.total
+                ? `${providerState.total.toLocaleString('id-ID')} judul • ${kind === 'tv' ? 'Series' : 'Film'}`
+                : 'Katalog tidak tersedia';
+        }
+
+        const wrap = document.getElementById('loadMoreWrap');
+        if (wrap) {
+            const hasMore = providerState.page < (data.total_pages || 1);
+            wrap.innerHTML = hasMore
+                ? `<button class="hero-btn" style="background:var(--surface);font-size:0.9rem;"
+                     onclick="navigate('provider',{id:${id},tab:'${kind}',page:${providerState.page + 1}})">
+                     Muat Lebih Banyak
+                   </button>`
+                : (providerState.results.length ? `<div style="color:var(--text-dim);font-size:0.82rem;">Semua judul sudah dimuat</div>` : '');
+        }
+
+        if (providerState.results.length === 0) {
+            document.getElementById('providerGrid').innerHTML =
+                `<div style="color:var(--text-dim);grid-column:1/-1;padding:20px 0;">
+                   Tidak ada ${kind === 'tv' ? 'series' : 'film'} untuk platform ini. Coba tab lainnya.
+                 </div>`;
+        }
+    } catch(e) {
+        document.getElementById('providerLoading')?.remove();
+        const wrap = document.getElementById('loadMoreWrap');
+        if (wrap) wrap.innerHTML = `<div style="color:var(--text-dim)">❌ ${e.message}</div>`;
     }
 }
 
@@ -1152,6 +1472,17 @@ async function nextEpisode(id, s, e) {
 }
 
 // ===== Init =====
+buildProviderMenu();
+
+// Dropdown open/close wiring
+document.getElementById('nav-provider')?.addEventListener('click', toggleProviderMenu);
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.nav-dropdown')) closeProviderMenu();
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeProviderMenu();
+});
+
 navigate('home');
 </script>
 </body>
