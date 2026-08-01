@@ -971,7 +971,9 @@ async function renderPlayer({type, id, season, episode}) {
                     <p style="color:var(--text-dim);margin-bottom:12px;">⚠️ Stream tidak tersedia untuk judul ini.</p>
                     <button class="hero-btn" style="font-size:0.85rem;padding:10px 20px;" onclick="retryPlayer()">Coba Lagi</button>
                 </div>
-                <div id="player-controls" style="display:none;margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">
+                <div id="player-controls" style="display:none;margin-top:16px;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <select id="subSelect" onchange="setSubtitle(this.value)" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-size:0.85rem;cursor:pointer;display:none;"></select>
+                    <select id="qualitySelect" onchange="setQuality(this.value)" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-size:0.85rem;cursor:pointer;display:none;"></select>
                     ${type === 'tv' ? `
                         <button class="hero-btn" style="background:var(--surface);font-size:0.85rem;padding:10px 20px;" onclick="prevEpisode(${id}, ${season}, ${episode})">⏮ Episode Sebelumnya</button>
                         <button class="hero-btn" style="background:var(--surface);font-size:0.85rem;padding:10px 20px;" onclick="nextEpisode(${id}, ${season}, ${episode})">Episode Selanjutnya ⏭</button>
@@ -983,6 +985,9 @@ async function renderPlayer({type, id, season, episode}) {
 
     await loadStream(type, id, season, episode);
 }
+
+let _hls = null;
+let _streamData = null;
 
 async function loadStream(type, id, season, episode) {
     const loading = document.getElementById('player-loading');
@@ -998,43 +1003,77 @@ async function loadStream(type, id, season, episode) {
         }
         
         const resp = await fetch(`/api/stream?${params}`);
-        const data = await resp.json();
+        _streamData = await resp.json();
 
-        if (!data.success) throw new Error(data.error || 'Unknown error');
+        if (!_streamData.success) throw new Error(_streamData.error || 'Unknown error');
 
         loading.style.display = 'none';
         area.style.display = 'block';
         controls.style.display = 'flex';
 
         const video = document.getElementById('video');
-        const streamUrl = data.streamUrl;
+        const streamUrl = _streamData.streamUrl;
 
-        // Use HLS.js for m3u8 streams
+        // Setup HLS.js with fast start settings
         if (window.Hls && Hls.isSupported()) {
-            const hls = new Hls({
+            if (_hls) { _hls.destroy(); }
+            _hls = new Hls({
                 enableWorker: true,
                 lowLatencyMode: false,
-                backBufferLength: 90,
-                maxBufferLength: 120,
+                backBufferLength: 30,
+                maxBufferLength: 30,
+                maxMaxBufferLength: 60,
+                startLevel: -1,        // auto: start with best match
+                maxBufferSize: 60 * 1000 * 1000,
+                maxBufferHole: 0.5,
+                abrEwmaDefaultEstimate: 1000000, // assume 1Mbps initially → start fast
+                startFragPrefetch: true,
+                progressive: true,
             });
-            hls.loadSource(streamUrl);
-            hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(()=>{}));
-            hls.on(Hls.Events.ERROR, (event, data) => {
+            _hls.loadSource(streamUrl);
+            _hls.attachMedia(video);
+            _hls.on(Hls.Events.MANIFEST_PARSED, (e, data) => {
+                // Populate quality selector
+                const qSel = document.getElementById('qualitySelect');
+                if (qSel && data.levels.length > 1) {
+                    qSel.innerHTML = '<option value="-1">Auto</option>' +
+                        data.levels.map((l, i) => 
+                            `<option value="${i}">${l.height || '?'}p (${Math.round(l.bitrate/1000)}kbps)</option>`
+                        ).join('');
+                    qSel.style.display = 'inline-block';
+                }
+                video.play().catch(()=>{});
+            });
+            _hls.on(Hls.Events.ERROR, (event, data) => {
                 if (data.fatal) {
                     console.error('HLS fatal:', data);
-                    // Try recovering
-                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
-                    else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                        setTimeout(() => _hls.startLoad(), 1000);
+                    } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                        _hls.recoverMediaError();
+                    }
                 }
             });
-            window._currentHls = hls;
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            // Native HLS (Safari/iOS)
             video.src = streamUrl;
             video.play().catch(()=>{});
         } else {
             throw new Error('HLS not supported');
+        }
+
+        // Setup subtitle selector
+        const subs = _streamData.subtitles || [];
+        const subSel = document.getElementById('subSelect');
+        if (subs.length > 0) {
+            subSel.innerHTML = '<option value="">CC Off</option>' +
+                subs.map(s => `<option value="${s.url}">${s.label}</option>`).join('');
+            subSel.style.display = 'inline-block';
+            // Auto-enable English or Indonesian
+            const preferred = subs.find(s => s.lang === 'en' || s.lang === 'id');
+            if (preferred) {
+                subSel.value = preferred.url;
+                addSubtitleTrack(preferred.url);
+            }
         }
 
     } catch (err) {
@@ -1043,6 +1082,49 @@ async function loadStream(type, id, season, episode) {
         area.style.display = 'none';
         controls.style.display = 'none';
         errDiv.style.display = 'block';
+    }
+}
+
+function setSubtitle(url) {
+    // Remove existing custom track
+    const video = document.getElementById('video');
+    if (!video) return;
+    
+    // Clear existing tracks
+    const tracks = video.querySelectorAll('track');
+    tracks.forEach(t => t.remove());
+
+    // Disable HLS subtitle tracks
+    if (_hls) {
+        _hls.subtitleTrack = -1;
+    }
+
+    if (!url) return; // CC off
+
+    addSubtitleTrack(url);
+}
+
+function addSubtitleTrack(url) {
+    const video = document.getElementById('video');
+    const track = document.createElement('track');
+    track.kind = 'subtitles';
+    track.label = 'Subtitles';
+    track.srclang = 'en';
+    track.src = url;
+    track.default = true;
+    video.appendChild(track);
+    
+    // Enable display
+    setTimeout(() => {
+        for (let i = 0; i < video.textTracks.length; i++) {
+            video.textTracks[i].mode = 'showing';
+        }
+    }, 500);
+}
+
+function setQuality(level) {
+    if (_hls) {
+        _hls.currentLevel = parseInt(level);
     }
 }
 

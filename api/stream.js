@@ -1,6 +1,3 @@
-const TMDB_API = 'https://api.themoviedb.org/3';
-const TMDB_KEY = '8265bd1679663a7ea12ac168da84d2e8';
-
 export default async function handler(req, res) {
     const { type, id, s, e } = req.query;
 
@@ -36,7 +33,7 @@ export default async function handler(req, res) {
             iframeSrc = `https://rozgarlelo.modiplay.xyz${iframeSrc}`;
         }
 
-        // Step 2: Get the player page to extract m3u8 URL
+        // Step 2: Get the player page to extract m3u8 URL + subtitle info
         const playerResp = await fetch(iframeSrc, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
@@ -46,31 +43,71 @@ export default async function handler(req, res) {
         const playerHtml = await playerResp.text();
 
         // Extract proxied m3u8 URL
+        let streamUrl = null;
         const srcMatch = playerHtml.match(/var\s+src\s*=\s*"([^"]+serve_m3u8[^"]+)"/);
         if (srcMatch) {
-            let streamUrl = srcMatch[1].replace(/\\\//g, '/').replace(/\\u0026/g, '&');
+            streamUrl = srcMatch[1].replace(/\\\//g, '/').replace(/\\u0026/g, '&');
             if (streamUrl.startsWith('/')) {
                 streamUrl = `https://rozgarlelo.modiplay.xyz${streamUrl}`;
             }
-            return res.status(200).json({ 
-                success: true, 
-                streamUrl,
-                type: 'proxy_m3u8'
-            });
         }
 
-        // Try directSrc fallback
-        const directMatch = playerHtml.match(/var\s+directSrc\s*=\s*"(https?:[^"]+master\.m3u8)"/);
-        if (directMatch) {
-            let directUrl = directMatch[1].replace(/\\\//g, '/');
-            return res.status(200).json({ 
-                success: true, 
-                streamUrl: directUrl,
-                type: 'direct_m3u8'
-            });
+        if (!streamUrl) {
+            const directMatch = playerHtml.match(/var\s+directSrc\s*=\s*"(https?:[^"]+master\.m3u8)"/);
+            if (directMatch) {
+                streamUrl = directMatch[1].replace(/\\\//g, '/');
+            }
         }
 
-        return res.status(404).json({ error: 'No m3u8 URL found in player page' });
+        if (!streamUrl) {
+            return res.status(404).json({ error: 'No m3u8 URL found' });
+        }
+
+        // Extract subtitle URLs from the player page
+        // Pattern: /stream_proxy.php?ref=...&url=...vtt
+        const subMatches = [...playerHtml.matchAll(/(?:url|src)=["']?(https?:\/\/[^\s"'<>]+\.vtt)/g)];
+        const subStreamMatches = [...playerHtml.matchAll(/(\/stream_proxy\.php\?[^\s"'<>\\]+\.vtt[^\s"'<>\\]*)/g)];
+        
+        const subtitles = [];
+        const seen = new Set();
+        
+        for (const m of subStreamMatches) {
+            let subUrl = m[1].replace(/&amp;/g, '&');
+            if (subUrl.startsWith('/')) {
+                subUrl = `https://rozgarlelo.modiplay.xyz${subUrl}`;
+            }
+            
+            // Detect language from filename
+            const langMatch = subUrl.match(/_([a-z]{2,3})\.vtt/i);
+            const lang = langMatch ? langMatch[1].toLowerCase() : 'en';
+            const langNames = { en: 'English', id: 'Indonesia', es: 'Español', fr: 'Français', 
+                               de: 'Deutsch', it: 'Italiano', pt: 'Português', ja: '日本語',
+                               ko: '한국어', zh: '中文', ar: 'العربية', hi: 'हिन्दी', 
+                               ru: 'Русский', th: 'ไทย', vi: 'Tiếng Việt', tr: 'Türkçe' };
+            
+            if (!seen.has(lang)) {
+                seen.add(lang);
+                subtitles.push({
+                    lang,
+                    label: langNames[lang] || lang.toUpperCase(),
+                    url: subUrl,
+                });
+            }
+        }
+
+        // Extract SEG_REF for building subtitle fetch URL
+        const segRefMatch = playerHtml.match(/var\s+SEG_REF\s*=\s*"(https?:[^"]+)"/);
+        const segRef = segRefMatch ? segRefMatch[1].replace(/\\\//g, '/') : null;
+
+        // Cache for 10 minutes (stream URLs are time-limited)
+        res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=300');
+
+        return res.status(200).json({
+            success: true,
+            streamUrl,
+            subtitles,
+            segRef,
+        });
 
     } catch (err) {
         return res.status(500).json({ error: err.message });
