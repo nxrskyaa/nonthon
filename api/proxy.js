@@ -36,12 +36,12 @@ export default async function handler(req, res) {
                 // Skip empty lines and comments (but not URI= lines)
                 if (!trimmed || trimmed.startsWith('#EXT')) {
                     // Handle URI= attribute inside #EXT-X-MEDIA and #EXT-X-STREAM-INF
-                    if (trimmed.includes('URI=/proxy.php') || trimmed.includes('URI=/stream_proxy.php')) {
+                    if (trimmed.includes('URI=') && (trimmed.includes('/proxy.php') || trimmed.includes('/stream_proxy.php'))) {
                         return line.replace(
-                            /URI=(\/(?:proxy|stream_proxy)\.php\?[^\s"',]*)/g,
+                            /URI=["']?(\/(?:proxy|stream_proxy)\.php\?[^\s"',]*)/g,
                             (match, path) => {
                                 const fullUrl = origin + path;
-                                return 'URI=' + '/api/proxy?url=' + encodeURIComponent(fullUrl);
+                                return 'URI="/api/proxy?url=' + encodeURIComponent(fullUrl) + '"';
                             }
                         );
                     }
