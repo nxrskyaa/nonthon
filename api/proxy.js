@@ -64,21 +64,15 @@ export default async function handler(req, res) {
                 }
 
                 // This is a segment URL line - check if it's an ad
+                // Only block KNOWN ad domains, allow everything else
                 const isAd = (
                     trimmed.includes('tiktokcdn') ||
-                    trimmed.includes('ad-site') ||
+                    trimmed.includes('ad-site-i18n') ||
                     trimmed.includes('doubleclick') ||
                     trimmed.includes('googleads') ||
                     trimmed.includes('googlesyndication') ||
                     trimmed.includes('popads') ||
-                    (trimmed.startsWith('http') && 
-                     !trimmed.includes('hanerix') &&
-                     !trimmed.includes('modiplay') &&
-                     !trimmed.includes('premilkyway') &&
-                     !trimmed.includes('/proxy.php') &&
-                     !trimmed.includes('/stream_proxy.php') &&
-                     !trimmed.includes('.ts') &&
-                     !trimmed.includes('/api/proxy'))
+                    trimmed.includes('ad-site-sign')
                 );
 
                 if (isAd) {

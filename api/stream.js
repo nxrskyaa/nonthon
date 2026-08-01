@@ -98,7 +98,7 @@ export default async function handler(req, res) {
         // Rewrite stream URL to go through our proxy
         const proxiedStreamUrl = PROXY_BASE + encodeURIComponent(streamUrl);
 
-        res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=300');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
 
         return res.status(200).json({
             success: true,
