@@ -5,6 +5,15 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing type or id' });
     }
 
+    const PROXY_BASE = 'https://nonthon.vercel.app/api/proxy?url=';
+    const langNames = { 
+        en: 'English', eng: 'English', id: 'Indonesia', ind: 'Indonesia',
+        es: 'Español', fr: 'Français', de: 'Deutsch', it: 'Italiano', 
+        pt: 'Português', ja: '日本語', ko: '한국어', zh: '中文',
+        ar: 'العربية', hi: 'हिन्दी', ru: 'Русский', th: 'ไทย',
+        vi: 'Tiếng Việt', tr: 'Türkçe',
+    };
+
     try {
         // Step 1: Get embed page from modiplay
         let embedUrl;
@@ -63,11 +72,8 @@ export default async function handler(req, res) {
             return res.status(404).json({ error: 'No m3u8 URL found' });
         }
 
-        // Extract subtitle URLs from the player page
-        // Pattern: /stream_proxy.php?ref=...&url=...vtt
-        const subMatches = [...playerHtml.matchAll(/(?:url|src)=["']?(https?:\/\/[^\s"'<>]+\.vtt)/g)];
+        // Extract subtitle VTT URLs
         const subStreamMatches = [...playerHtml.matchAll(/(\/stream_proxy\.php\?[^\s"'<>\\]+\.vtt[^\s"'<>\\]*)/g)];
-        
         const subtitles = [];
         const seen = new Set();
         
@@ -76,37 +82,28 @@ export default async function handler(req, res) {
             if (subUrl.startsWith('/')) {
                 subUrl = `https://rozgarlelo.modiplay.xyz${subUrl}`;
             }
-            
-            // Detect language from filename
             const langMatch = subUrl.match(/_([a-z]{2,3})\.vtt/i);
             const lang = langMatch ? langMatch[1].toLowerCase() : 'en';
-            const langNames = { en: 'English', id: 'Indonesia', es: 'Español', fr: 'Français', 
-                               de: 'Deutsch', it: 'Italiano', pt: 'Português', ja: '日本語',
-                               ko: '한국어', zh: '中文', ar: 'العربية', hi: 'हिन्दी', 
-                               ru: 'Русский', th: 'ไทย', vi: 'Tiếng Việt', tr: 'Türkçe' };
             
             if (!seen.has(lang)) {
                 seen.add(lang);
                 subtitles.push({
                     lang,
                     label: langNames[lang] || lang.toUpperCase(),
-                    url: subUrl,
+                    url: PROXY_BASE + encodeURIComponent(subUrl),
                 });
             }
         }
 
-        // Extract SEG_REF for building subtitle fetch URL
-        const segRefMatch = playerHtml.match(/var\s+SEG_REF\s*=\s*"(https?:[^"]+)"/);
-        const segRef = segRefMatch ? segRefMatch[1].replace(/\\\//g, '/') : null;
+        // Rewrite stream URL to go through our proxy
+        const proxiedStreamUrl = PROXY_BASE + encodeURIComponent(streamUrl);
 
-        // Cache for 10 minutes (stream URLs are time-limited)
         res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=300');
 
         return res.status(200).json({
             success: true,
-            streamUrl,
+            streamUrl: proxiedStreamUrl,
             subtitles,
-            segRef,
         });
 
     } catch (err) {
