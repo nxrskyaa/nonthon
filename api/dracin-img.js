@@ -22,6 +22,11 @@ const ALLOWED_HOSTS = [
     /^([a-z0-9-]+\.)*vodcnd[0-9]*\.[a-z0-9-]+\.com$/i,
     // ReelShort covers
     /^([a-z0-9-]+\.)*crazymaplestudios\.com$/i,
+    // NXRStream cover/image hosts
+    /^([a-z0-9-]+\.)*netpop\.app$/i,
+    /^([a-z0-9-]+\.)*despseek\.com$/i,
+    /^([a-z0-9-]+\.)*loklok\.media$/i,
+    /^([a-z0-9-]+\.)*loklok\.tv$/i,
 ];
 
 const MAX_BYTES = 6 * 1024 * 1024;

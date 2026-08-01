@@ -13,6 +13,11 @@ const ALLOWED_HOSTS = [
     /^([a-z0-9-]+\.)*opensubtitles\.org$/i,
     /^([a-z0-9-]+\.)*opensubtitles\.com$/i,
     /^([a-z0-9-]+\.)*modiplay\.xyz$/i,      // stream provider's own embedded VTT tracks
+    // NXRStream subtitle hosts
+    /^([a-z0-9-]+\.)*despseek\.com$/i,
+    /^([a-z0-9-]+\.)*netpop\.app$/i,
+    /^([a-z0-9-]+\.)*loklok\.media$/i,
+    /^([a-z0-9-]+\.)*loklok\.tv$/i,
 ];
 
 const MAX_BYTES = 3 * 1024 * 1024; // 3 MB is far beyond any real subtitle file
