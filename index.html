@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nonthon — Nonton Film & Series Gratis</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #13131a;
+            --surface-hover: #1c1c26;
+            --primary: #e50914;
+            --primary-hover: #f6121d;
+            --text: #ffffff;
+            --text-dim: #a0a0b0;
+            --border: #2a2a35;
+            --radius: 10px;
+            --shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Navbar */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: linear-gradient(180deg, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0.7) 100%);
+            backdrop-filter: blur(12px);
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+        nav .logo {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--primary);
+            cursor: pointer;
+            letter-spacing: -0.5px;
+            white-space: nowrap;
+        }
+        nav .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+        nav .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.92rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: color .2s;
+        }
+        nav .nav-links a:hover, nav .nav-links a.active { color: var(--text); }
+        nav .search-wrap {
+            margin-left: auto;
+            position: relative;
+        }
+        nav .search-wrap input {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            color: var(--text);
+            padding: 9px 16px 9px 38px;
+            font-size: 0.9rem;
+            width: 240px;
+            transition: all .2s;
+            outline: none;
+        }
+        nav .search-wrap input:focus {
+            border-color: var(--primary);
+            width: 320px;
+        }
+        nav .search-wrap svg {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            fill: var(--text-dim);
+        }
+
+        /* Main container */
+        #app { padding-top: 64px; min-height: 100vh; }
+
+        /* Hero */
+        .hero {
+            position: relative;
+            height: 70vh;
+            min-height: 400px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .hero-bg {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center top;
+        }
+        .hero-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, rgba(10,10,15,0.9) 0%, rgba(10,10,15,0.4) 60%, transparent 100%),
+                        linear-gradient(0deg, rgba(10,10,15,1) 0%, transparent 50%);
+        }
+        .hero-content {
+            position: absolute;
+            bottom: 40px;
+            left: 32px;
+            right: 32px;
+            max-width: 600px;
+        }
+        .hero-content h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.7);
+            letter-spacing: -1px;
+        }
+        .hero-content p {
+            font-size: 1rem;
+            color: var(--text-dim);
+            margin-bottom: 20px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .hero-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .hero-btn:hover { background: var(--primary-hover); }
+
+        /* Sections */
+        .section {
+            padding: 20px 32px;
+        }
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        /* Card Grid */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 16px;
+        }
+        .card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform .2s, box-shadow .2s;
+            position: relative;
+        }
+        .card:hover {
+            transform: scale(1.04);
+            box-shadow: var(--shadow);
+            z-index: 10;
+        }
+        .card img {
+            width: 100%;
+            aspect-ratio: 2/3;
+            object-fit: cover;
+            display: block;
+        }
+        .card-body {
+            padding: 8px 10px 12px;
+        }
+        .card-body .title {
+            font-size: 0.88rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .card-body .meta {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            margin-top: 2px;
+        }
+        .card .rating-badge {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: rgba(0,0,0,0.75);
+            color: #ffd700;
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* Detail Page */
+        .detail-header {
+            position: relative;
+            min-height: 400px;
+            overflow: hidden;
+        }
+        .detail-bg {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center top;
+            filter: blur(2px);
+        }
+        .detail-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0.6) 50%, transparent 100%),
+                        linear-gradient(0deg, var(--bg) 0%, transparent 40%);
+        }
+        .detail-content {
+            position: relative;
+            display: flex;
+            gap: 28px;
+            padding: 40px 32px;
+            z-index: 1;
+        }
+        .detail-poster {
+            flex-shrink: 0;
+            width: 200px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+        .detail-poster img {
+            width: 100%;
+            border-radius: var(--radius);
+            display: block;
+        }
+        .detail-info { flex: 1; max-width: 700px; padding-top: 20px; }
+        .detail-info h1 {
+            font-size: 2.4rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+        .detail-info .tagline {
+            font-style: italic;
+            color: var(--text-dim);
+            margin-bottom: 12px;
+        }
+        .detail-info .meta-row {
+            display: flex;
+            gap: 16px;
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .detail-info .meta-row span { display: flex; align-items: center; gap: 4px; }
+        .detail-info .meta-row .rating { color: #ffd700; font-weight: 700; }
+        .detail-info .genres { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+        .detail-info .genre-tag {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            padding: 4px 14px;
+            font-size: 0.8rem;
+        }
+        .detail-info .overview {
+            font-size: 0.95rem;
+            color: var(--text-dim);
+            line-height: 1.7;
+            margin-bottom: 20px;
+        }
+        .play-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px 36px;
+            border-radius: 6px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background .2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .play-btn:hover { background: var(--primary-hover); }
+
+        /* Cast */
+        .cast-section { padding: 0 32px 24px; }
+        .cast-grid {
+            display: flex;
+            gap: 14px;
+            overflow-x: auto;
+            padding-bottom: 12px;
+        }
+        .cast-card {
+            flex-shrink: 0;
+            width: 100px;
+            text-align: center;
+        }
+        .cast-card img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 6px;
+        }
+        .cast-card .name { font-size: 0.8rem; font-weight: 600; }
+        .cast-card .char { font-size: 0.72rem; color: var(--text-dim); }
+
+        /* Player */
+        .player-wrap {
+            position: relative;
+            padding: 64px 0 0;
+            background: var(--bg);
+        }
+        .player-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .player-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+        .player-back {
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+            display: inline-block;
+        }
+        .player-back:hover { color: var(--text); }
+        .player-frame-wrap {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+        .player-frame-wrap::before {
+            content: '';
+            display: block;
+            padding-top: 56.25%;
+        }
+        #playerFrame {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            border: none;
+        }
+
+        /* Season / Episode selector for TV */
+        .season-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .season-selector select {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 14px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .episode-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .episode-card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 12px 14px;
+            cursor: pointer;
+            transition: background .2s;
+            border: 2px solid transparent;
+        }
+        .episode-card:hover { background: var(--surface-hover); }
+        .episode-card.active { border-color: var(--primary); }
+        .episode-card .ep-num { font-size: 0.75rem; color: var(--primary); font-weight: 700; }
+        .episode-card .ep-name { font-size: 0.88rem; font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .episode-card .ep-overview { font-size: 0.76rem; color: var(--text-dim); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-dim);
+        }
+        .loading-spinner {
+            width: 36px; height: 36px;
+            border: 3px solid var(--surface);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 24px 24px;
+            color: var(--text-dim);
+            font-size: 0.82rem;
+            border-top: 1px solid var(--border);
+        }
+        footer a { color: var(--primary); text-decoration: none; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            nav { padding: 12px 14px; gap: 12px; }
+            nav .nav-links { display: none; }
+            nav .search-wrap input { width: 160px; }
+            nav .search-wrap input:focus { width: 200px; }
+            .section { padding: 16px 14px; }
+            .hero { height: 50vh; min-height: 300px; }
+            .hero-content { left: 16px; right: 16px; bottom: 24px; }
+            .hero-content h1 { font-size: 1.8rem; }
+            .card-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+            .detail-content { flex-direction: column; padding: 20px 16px; }
+            .detail-poster { width: 140px; margin: 0 auto; }
+            .detail-info { text-align: center; padding-top: 0; }
+            .detail-info h1 { font-size: 1.6rem; }
+            .detail-info .genres { justify-content: center; }
+            .cast-section { padding: 0 16px 20px; }
+            .player-container { padding: 12px; }
+        }
+        .placeholder-poster {
+            background: var(--surface);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <div class="logo" onclick="navigate('home')">N</div>
+    <div class="nav-links">
+        <a id="nav-home" class="active" onclick="navigate('home')">Beranda</a>
+        <a id="nav-movie" onclick="navigate('movie')">Film</a>
+        <a id="nav-tv" onclick="navigate('tv')">Series</a>
+        <a id="nav-trending" onclick="navigate('trending')">Trending</a>
+    </div>
+    <div class="search-wrap">
+        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input type="text" id="searchInput" placeholder="Cari film atau series..." oninput="handleSearch(event)">
+    </div>
+</nav>
+
+<div id="app"></div>
+
+<footer>
+    <p><strong>Nonthon</strong> — Streaming tanpa iklan. Source: TMDB + vidbox.vc</p>
+    <p style="margin-top:6px; font-size:0.76rem;">Untuk pakai pribadi. Metadata dari TMDB, video dari vidbox.vc.</p>
+</footer>
+
+<script>
+const TMDB_API = 'https://api.themoviedb.org/3';
+const TMDB_KEY = '8265bd1679663a7ea12ac168da84d2e8'; // public TMDB demo key
+const TMDB_IMG = 'https://image.tmdb.org/t/p/w500';
+const TMDB_IMG_ORIG = 'https://image.tmdb.org/t/p/original';
+const TMDB_IMG_SM = 'https://image.tmdb.org/t/p/w300';
+
+// vidbox.vc embed patterns
+const VIDBOX_MOVIE = (id) => `https://vidbox.vc/embed/movie/${id}`;
+const VIDBOX_TV = (id, s, e) => `https://vidbox.vc/embed/tv/${id}/${s}/${e}`;
+
+let searchTimer = null;
+let currentView = 'home';
+let currentState = null;
+
+// ===== API =====
+async function tmdb(path, params = {}) {
+    const url = new URL(TMDB_API + path);
+    url.searchParams.set('api_key', TMDB_KEY);
+    url.searchParams.set('language', 'id-ID');
+    Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+    try {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error('TMDB ' + r.status);
+        return await r.json();
+    } catch(e) {
+        // fallback English
+        url.searchParams.set('language', 'en-US');
+        const r2 = await fetch(url);
+        return await r2.json();
+    }
+}
+
+// ===== Navigation =====
+function navigate(view, data) {
+    currentView = view;
+    window.scrollTo(0, 0);
+
+    // nav active
+    document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+    const navMap = { home: 'nav-home', movie: 'nav-movie', tv: 'nav-tv', trending: 'nav-trending' };
+    if (navMap[view]) document.getElementById(navMap[view]).classList.add('active');
+
+    switch(view) {
+        case 'home': renderHome(); break;
+        case 'movie': renderMovieList(); break;
+        case 'tv': renderTVList(); break;
+        case 'trending': renderTrending(); break;
+        case 'search': renderSearch(data); break;
+        case 'detail': renderDetail(data); break;
+        case 'player': renderPlayer(data); break;
+    }
+}
+
+// ===== Home =====
+async function renderHome() {
+    const app = document.getElementById('app');
+    app.innerHTML = `<div class="loading"><div class="loading-spinner"></div>Memuat...</div>`;
+
+    try {
+        const [trending, movies, tv] = await Promise.all([
+            tmdb('/trending/all/week', { page: 1 }),
+            tmdb('/movie/popular', { page: 1 }),
+            tmdb('/tv/popular', { page: 1 })
+        ]);
+
+        const heroItem = trending.results[0];
+        const heroImg = heroItem.backdrop_path ? TMDB_IMG_ORIG + heroItem.backdrop_path : '';
+        const heroTitle = heroItem.title || heroItem.name;
+        const heroOverview = heroItem.overview || '';
+
+        app.innerHTML = `
+            <div class="hero">
+                <div class="hero-bg" style="background-image:url('${heroImg}')"></div>
+                <div class="hero-overlay"></div>
+                <div class="hero-content">
+                    <h1>${heroTitle}</h1>
+                    <p>${heroOverview}</p>
+                    <button class="hero-btn" onclick="navigate('detail', {type:'${heroItem.media_type}', id:${heroItem.id}})">
+                        ▶ Nonton Sekarang
+                    </button>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-title">🔥 Trending Minggu Ini</div>
+                <div class="card-grid" id="grid-trending"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">🎬 Film Populer</div>
+                <div class="card-grid" id="grid-movies"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">📺 Series Populer</div>
+                <div class="card-grid" id="grid-tv"></div>
+            </div>
+        `;
+
+        renderCards('grid-trending', trending.results.slice(0, 18));
+        renderCards('grid-movies', movies.results.slice(0, 18));
+        renderCards('grid-tv', tv.results.slice(0, 18));
+    } catch(e) {
+        app.innerHTML = `<div class="loading">❌ Gagal memuat: ${e.message}<br><button class="hero-btn" onclick="navigate('home')">Coba Lagi</button></div>`;
+    }
+}
+
+function renderCards(elId, items) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.innerHTML = items.map(item => {
+        const type = item.media_type || (item.title ? 'movie' : 'tv');
+        const title = item.title || item.name;
+        const poster = item.poster_path ? TMDB_IMG + item.poster_path : '';
+        const rating = item.vote_average ? item.vote_average.toFixed(1) : '';
+        const date = item.release_date || item.first_air_date || '';
+        const year = date ? date.substring(0,4) : '';
+
+        return `
+            <div class="card" onclick="navigate('detail', {type:'${type}', id:${item.id}})">
+                ${rating ? `<div class="rating-badge">★ ${rating}</div>` : ''}
+                ${poster
+                    ? `<img src="${poster}" alt="${title}" loading="lazy">`
+                    : `<div class="placeholder-poster" style="aspect-ratio:2/3">${title}</div>`
+                }
+                <div class="card-body">
+                    <div class="title">${title}</div>
+                    <div class="meta">${year}${type === 'tv' ? ' • Series' : ''}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ===== Movie / TV List =====
+async function renderMovieList(page = 1) {
+    const app = document.getElementById('app');
+    app.innerHTML = `<div class="loading"><div class="loading-spinner"></div>Memuat film...</div>`;
+    try {
+        const [popular, topRated, nowPlaying] = await Promise.all([
+            tmdb('/movie/popular', { page }),
+            tmdb('/movie/top_rated', { page }),
+            tmdb('/movie/now_playing', { page })
+        ]);
+        app.innerHTML = `
+            <div class="section">
+                <div class="section-title">🎬 Sedang Tayang</div>
+                <div class="card-grid" id="grid-nowplaying"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">🔥 Film Populer</div>
+                <div class="card-grid" id="grid-popular"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">⭐ Film Rating Tinggi</div>
+                <div class="card-grid" id="grid-toprated"></div>
+            </div>
+        `;
+        const movieType = (item) => { item.media_type = 'movie'; return item; };
+        renderCards('grid-nowplaying', nowPlaying.results.map(movieType));
+        renderCards('grid-popular', popular.results.map(movieType));
+        renderCards('grid-toprated', topRated.results.map(movieType));
+    } catch(e) {
+        app.innerHTML = `<div class="loading">❌ ${e.message}</div>`;
+    }
+}
+
+async function renderTVList(page = 1) {
+    const app = document.getElementById('app');
+    app.innerHTML = `<div class="loading"><div class="loading-spinner"></div>Memuat series...</div>`;
+    try {
+        const [popular, topRated, airingToday] = await Promise.all([
+            tmdb('/tv/popular', { page }),
+            tmdb('/tv/top_rated', { page }),
+            tmdb('/tv/airing_today', { page })
+        ]);
+        app.innerHTML = `
+            <div class="section">
+                <div class="section-title">📺 Tayang Hari Ini</div>
+                <div class="card-grid" id="grid-airing"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">🔥 Series Populer</div>
+                <div class="card-grid" id="grid-popular"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">⭐ Series Rating Tinggi</div>
+                <div class="card-grid" id="grid-toprated"></div>
+            </div>
+        `;
+        const tvType = (item) => { item.media_type = 'tv'; return item; };
+        renderCards('grid-airing', airingToday.results.map(tvType));
+        renderCards('grid-popular', popular.results.map(tvType));
+        renderCards('grid-toprated', topRated.results.map(tvType));
+    } catch(e) {
+        app.innerHTML = `<div class="loading">❌ ${e.message}</div>`;
+    }
+}
+
+async function renderTrending() {
+    const app = document.getElementById('app');
+    app.innerHTML = `<div class="loading"><div class="loading-spinner"></div>Memuat trending...</div>`;
+    try {
+        const [day, week] = await Promise.all([
+            tmdb('/trending/all/day', { page: 1 }),
+            tmdb('/trending/all/week', { page: 1 })
+        ]);
+        app.innerHTML = `
+            <div class="section">
+                <div class="section-title">🔥 Trending Hari Ini</div>
+                <div class="card-grid" id="grid-day"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">📈 Trending Minggu Ini</div>
+                <div class="card-grid" id="grid-week"></div>
+            </div>
+        `;
+        renderCards('grid-day', day.results);
+        renderCards('grid-week', week.results);
+    } catch(e) {
+        app.innerHTML = `<div class="loading">❌ ${e.message}</div>`;
+    }
+}
+
+// ===== Search =====
+function handleSearch(e) {
+    clearTimeout(searchTimer);
+    const q = e.target.value.trim();
+    if (!q) {
+        if (currentView !== 'search') navigate(currentView === 'search' ? 'home' : currentView);
+        return;
+    }
+    searchTimer = setTimeout(() => navigate('search', q), 400);
+}
+
+async function renderSearch(query) {
+    const app = document.getElementById('app');
+    app.innerHTML = `<div class="loading"><div class="loading-spinner"></div>Mencari "${query}"...</div>`;
+    try {
+        const [movies, tvs] = await Promise.all([
+            tmdb('/search/movie', { query, page: 1 }),
+            tmdb('/search/tv', { query, page: 1 })
+        ]);
+        const results = [
+            ...movies.results.map(m => { m.media_type = 'movie'; return m; }),
+            ...tvs.results.map(t => { t.media_type = 'tv'; return t; })
+        ].sort((a,b) => (b.popularity||0) - (a.popularity||0));
+
+        if (results.length === 0) {
+            app.innerHTML = `<div class="section"><div class="section-title">Tidak ada hasil untuk "${query}"</div></div>`;
+            return;
+        }
+        app.innerHTML = `<div class="section"><div class="section-title">🔍 Hasil pencarian: "${query}" (${results.length})</div><div class="card-grid" id="grid-search"></div></div>`;
+        renderCards('grid-search', results);
+    } catch(e) {
+        app.innerHTML = `<div class="loading">❌ ${e.message}</div>`;
+    }
+}
+
+// ===== Detail =====
+async function renderDetail({type, id, season, episode}) {
+    const app = document.getElementById('app');
+    app.innerHTML = `<div class="loading"><div class="loading-spinner"></div>Memuat detail...</div>`;
+    currentState = { type, id, season, episode };
+
+    try {
+        const data = await tmdb(`/${type}/${id}`, { append_to_response: 'credits,similar,recommendations,videos' });
+
+        const title = data.title || data.name;
+        const backdrop = data.backdrop_path ? TMDB_IMG_ORIG + data.backdrop_path : '';
+        const poster = data.poster_path ? TMDB_IMG + data.poster_path : '';
+        const year = (data.release_date || data.first_air_date || '').substring(0,4);
+        const rating = data.vote_average ? data.vote_average.toFixed(1) : 'N/A';
+        const runtime = data.runtime || (data.episode_run_time && data.episode_run_time[0]) || null;
+        const genres = (data.genres || []).map(g => `<span class="genre-tag">${g.name}</span>`).join('');
+
+        let html = `
+            <div class="detail-header">
+                ${backdrop ? `<div class="detail-bg" style="background-image:url('${backdrop}')"></div>` : ''}
+                <div class="detail-overlay"></div>
+                <div class="detail-content">
+                    ${poster ? `<div class="detail-poster"><img src="${poster}" alt="${title}"></div>` : ''}
+                    <div class="detail-info">
+                        <h1>${title}</h1>
+                        ${data.tagline ? `<p class="tagline">"${data.tagline}"</p>` : ''}
+                        <div class="meta-row">
+                            <span class="rating">★ ${rating}</span>
+                            ${year ? `<span>📅 ${year}</span>` : ''}
+                            ${runtime ? `<span>⏱ ${runtime} menit</span>` : ''}
+                            ${type === 'tv' ? `<span>📺 ${data.number_of_seasons} musim</span>` : ''}
+                        </div>
+                        <div class="genres">${genres}</div>
+                        <p class="overview">${data.overview || 'Tidak ada sinopsis.'}</p>
+                        <button class="play-btn" onclick="startPlayback()">▶ Nonton</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // TV: season/episode selector
+        if (type === 'tv' && data.seasons && data.seasons.length > 0) {
+            const validSeasons = data.seasons.filter(s => s.season_number > 0 || data.seasons.length === 1);
+            html += `
+                <div class="section" id="tv-seasons">
+                    <div class="section-title">Episodes</div>
+                    <div class="season-selector">
+                        <select id="seasonSelect" onchange="loadSeason(${id}, this.value)">
+                            ${validSeasons.map(s => `<option value="${s.season_number}" ${parseInt(season||1)===s.season_number?'selected':''}>Musim ${s.season_number} (${s.episode_count} eps)</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="episode-grid" id="episodeGrid"></div>
+                </div>
+            `;
+        }
+
+        // Cast
+        if (data.credits && data.credits.cast && data.credits.cast.length > 0) {
+            const cast = data.credits.cast.slice(0, 12);
+            html += `
+                <div class="cast-section">
+                    <div class="section-title">Pemeran</div>
+                    <div class="cast-grid">
+                        ${cast.map(c => `
+                            <div class="cast-card">
+                                ${c.profile_path ? `<img src="${TMDB_IMG_SM + c.profile_path}" alt="${c.name}">` : `<div style="width:100px;height:100px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:2rem;margin-bottom:6px;">👤</div>`}
+                                <div class="name">${c.name}</div>
+                                <div class="char">${c.character}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Similar / Recommendations
+        const recs = (data.recommendations && data.recommendations.results) || (data.similar && data.similar.results) || [];
+        if (recs.length > 0) {
+            html += `<div class="section"><div class="section-title">📌 Rekomendasi</div><div class="card-grid" id="grid-recs"></div></div>`;
+        }
+
+        app.innerHTML = html;
+
+        if (recs.length > 0) {
+            const recItems = recs.slice(0, 12).map(r => { r.media_type = type; return r; });
+            renderCards('grid-recs', recItems);
+        }
+
+        // Load episodes for TV
+        if (type === 'tv' && season) {
+            loadSeason(id, season);
+        }
+    } catch(e) {
+        app.innerHTML = `<div class="loading">❌ ${e.message}</div>`;
+    }
+}
+
+async function loadSeason(id, seasonNum) {
+    currentState.season = parseInt(seasonNum);
+    const grid = document.getElementById('episodeGrid');
+    if (!grid) return;
+    grid.innerHTML = `<div class="loading"><div class="loading-spinner"></div></div>`;
+    try {
+        const data = await tmdb(`/tv/${id}/season/${seasonNum}`);
+        const episodes = data.episodes || [];
+        grid.innerHTML = episodes.map(ep => `
+            <div class="episode-card ${currentState.episode === ep.episode_number ? 'active' : ''}" onclick="playEpisode(${id}, ${seasonNum}, ${ep.episode_number})">
+                <div class="ep-num">E${ep.episode_number}</div>
+                <div class="ep-name">${ep.name || 'Episode ' + ep.episode_number}</div>
+                ${ep.overview ? `<div class="ep-overview">${ep.overview}</div>` : ''}
+            </div>
+        `).join('');
+    } catch(e) {
+        grid.innerHTML = `<div style="color:var(--text-dim)">Gagal memuat episode</div>`;
+    }
+}
+
+function startPlayback() {
+    if (currentState.type === 'movie') {
+        navigate('player', { type: 'movie', id: currentState.id });
+    } else if (currentState.type === 'tv') {
+        const s = currentState.season || 1;
+        const e = currentState.episode || 1;
+        navigate('player', { type: 'tv', id: currentState.id, season: s, episode: e });
+    }
+}
+
+function playEpisode(id, season, episode) {
+    currentState.episode = episode;
+    navigate('player', { type: 'tv', id, season, episode });
+}
+
+// ===== Player =====
+async function renderPlayer({type, id, season, episode}) {
+    const app = document.getElementById('app');
+    currentState = { type, id, season, episode };
+
+    // Get title
+    let title = 'Player';
+    try {
+        const data = await tmdb(`/${type}/${id}`);
+        title = data.title || data.name;
+        if (type === 'tv' && season) {
+            const sData = await tmdb(`/tv/${id}/season/${season}`);
+            const ep = sData.episodes.find(e => e.episode_number === episode);
+            title += ` — S${season}E${episode}` + (ep && ep.name ? `: ${ep.name}` : '');
+        }
+    } catch(e) {}
+
+    const embedUrl = type === 'movie'
+        ? VIDBOX_MOVIE(id)
+        : VIDBOX_TV(id, season || 1, episode || 1);
+
+    app.innerHTML = `
+        <div class="player-wrap">
+            <div class="player-container">
+                <div class="player-back" onclick="navigate('detail', {type:'${type}', id:${id}${type==='tv'?`, season:${season||1}, episode:${episode||1}`:''}})">← Kembali</div>
+                <div class="player-title">${title}</div>
+                <div class="player-frame-wrap">
+                    <iframe id="playerFrame" src="${embedUrl}" allowfullscreen frameborder="0"
+                        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                        referrerpolicy="origin"
+                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
+                    ></iframe>
+                </div>
+                ${type === 'tv' ? `
+                    <div style="margin-top:16px; display:flex; gap:8px;">
+                        <button class="hero-btn" style="background:var(--surface);font-size:0.85rem;padding:10px 20px;" onclick="prevEpisode(${id}, ${season}, ${episode})">⏮ Epsiode Sebelumnya</button>
+                        <button class="hero-btn" style="background:var(--surface);font-size:0.85rem;padding:10px 20px;" onclick="nextEpisode(${id}, ${season}, ${episode})">Episode Selanjutnya ⏭</button>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+async function prevEpisode(id, s, e) {
+    if (e > 1) navigate('player', { type: 'tv', id, season: s, episode: e - 1 });
+}
+async function nextEpisode(id, s, e) {
+    navigate('player', { type: 'tv', id, season: s, episode: e + 1 });
+}
+
+// ===== Init =====
+navigate('home');
+</script>
+</body>
+</html>
