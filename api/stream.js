@@ -1,4 +1,8 @@
+import { requireAuth } from '../lib/auth.js';
+
 export default async function handler(req, res) {
+    if (!requireAuth(req, res)) return;
+
     const { type, id, s, e } = req.query;
 
     if (!type || !id) {

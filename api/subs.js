@@ -1,4 +1,6 @@
 // Multi-language subtitle catalog.
+import { requireAuth } from '../lib/auth.js';
+
 // Source: OpenSubtitles v3 (Stremio addon) — CORS *, no API key, 30+ languages incl. Indonesian.
 // Verified: 93 subs / 34 langs for tt10872600, 94 subs for GoT S1E1.
 
@@ -38,6 +40,8 @@ function rank(code) {
 }
 
 export default async function handler(req, res) {
+    if (!requireAuth(req, res)) return;
+
     const { type, id, s, e } = req.query;
     if (!type || !id) return res.status(400).json({ error: 'Missing type or id' });
 

@@ -1,1 +1,11 @@
+# --- Nonthon: never commit secrets ---
 .vercel
+.env
+.env.*
+!.env.example
+*.local
+env.local
+secrets/
+node_modules/
+.DS_Store
+*.log

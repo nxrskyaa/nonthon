@@ -1,0 +1,14 @@
+{
+  "name": "nonthon",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Nonthon — ad-free movie & series streaming frontend. Created by NxrHunt Labs.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vercel dev",
+    "verify": "node tools/verify-auth.mjs"
+  }
+}

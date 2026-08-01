@@ -626,6 +626,89 @@
             color: var(--text-dim);
             font-size: 0.8rem;
         }
+
+        /* Section head with "see all" link */
+        .section-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .section-more {
+            color: var(--text-dim);
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .section-more:hover { color: var(--primary); }
+
+        /* Sort select */
+        .sort-select {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            padding: 7px 14px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            outline: none;
+            margin-left: auto;
+        }
+        .sort-select:focus { border-color: var(--primary); }
+        @media (max-width: 768px) {
+            .sort-select { margin-left: 0; width: 100%; }
+        }
+
+        /* About page */
+        .about-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: var(--shadow);
+        }
+        .about-brand {
+            font-size: 1.15rem;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            color: var(--primary);
+            text-align: center;
+            padding-bottom: 18px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 20px;
+        }
+        .about-lead { font-size: 0.98rem; color: var(--text-dim); margin-bottom: 22px; }
+        .about-lead strong { color: var(--text); }
+        .about-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 14px;
+        }
+        .about-item {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 0.86rem;
+            color: var(--text-dim);
+            line-height: 1.5;
+        }
+        .about-item span { font-size: 1.4rem; line-height: 1; }
+        .about-item b { color: var(--text); }
+        .about-foot {
+            margin-top: 24px;
+            padding-top: 18px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 0.86rem;
+            color: var(--text-dim);
+        }
+        .about-foot b { color: var(--text); }
     </style>
 </head>
 <body>
@@ -634,6 +717,7 @@
     <div class="logo" onclick="navigate('home')">N</div>
     <div class="nav-links">
         <a id="nav-home" class="active" onclick="navigate('home')">Beranda</a>
+        <a id="nav-latest" onclick="navigate('latest')">Terbaru</a>
         <a id="nav-movie" onclick="navigate('movie')">Film</a>
         <a id="nav-tv" onclick="navigate('tv')">Series</a>
         <a id="nav-trending" onclick="navigate('trending')">Trending</a>
@@ -641,6 +725,7 @@
             <a id="nav-provider" class="dd-toggle">Platform ▾</a>
             <div class="dd-menu" id="providerMenu"></div>
         </div>
+        <a id="nav-about" onclick="navigate('about')">About</a>
     </div>
     <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Menu">☰</button>
     <div class="search-wrap">
@@ -654,6 +739,7 @@
 <footer>
     <p><strong>Nonthon</strong> — Streaming tanpa iklan. Source: TMDB + vidbox.vc</p>
     <p style="margin-top:6px; font-size:0.76rem;">Untuk pakai pribadi. Metadata dari TMDB, video dari vidbox.vc.</p>
+    <p style="margin-top:10px; font-size:0.8rem; font-weight:700; letter-spacing:1px; color:var(--primary);">CREATED BY NxrHunt Labs</p>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
@@ -765,18 +851,20 @@ function navigate(view, data) {
 
     // nav active
     document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
-    const navMap = { home: 'nav-home', movie: 'nav-movie', tv: 'nav-tv', trending: 'nav-trending', provider: 'nav-provider' };
+    const navMap = { home: 'nav-home', latest: 'nav-latest', movie: 'nav-movie', tv: 'nav-tv', trending: 'nav-trending', provider: 'nav-provider', about: 'nav-about' };
     if (navMap[view]) document.getElementById(navMap[view])?.classList.add('active');
 
     switch(view) {
         case 'home': renderHome(); break;
+        case 'latest': renderLatest(data); break;
         case 'movie': renderMovieList(); break;
         case 'tv': renderTVList(); break;
-        case 'trending': renderTrending(); break;
+        case 'trending': renderTrending(data); break;
         case 'search': renderSearch(data); break;
         case 'detail': renderDetail(data); break;
         case 'player': renderPlayer(data); break;
         case 'provider': renderProvider(data); break;
+        case 'about': renderAbout(); break;
     }
 }
 
@@ -919,16 +1007,174 @@ async function renderProvider({id, tab, page}) {
     }
 }
 
+// ===== Terbaru / Browse with sorting =====
+const SORT_OPTIONS = [
+    { key: 'baru',    label: '🆕 Rilis Terbaru' },
+    { key: 'trending',label: '🔥 Baru & Trending (90 hari)' },
+    { key: 'populer', label: '⭐ Paling Populer' },
+    { key: 'rating',  label: '🏆 Rating Tertinggi' },
+    { key: 'lama',    label: '📼 Rilis Terlama' },
+];
+
+let latestState = { kind: 'movie', sort: 'baru', page: 1, results: [], total: 0, pages: 1 };
+
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function daysAgoISO(n) {
+    const d = new Date(Date.now() - n * 86400000);
+    return d.toISOString().slice(0, 10);
+}
+
+function buildDiscoverParams(kind, sort, page) {
+    const dateField = kind === 'movie' ? 'primary_release_date' : 'first_air_date';
+    const p = { page, include_adult: false };
+    switch (sort) {
+        case 'baru':
+            p.sort_by = `${dateField}.desc`;
+            p[`${dateField}.lte`] = todayISO();
+            p['vote_count.gte'] = 1;
+            break;
+        case 'trending':
+            p.sort_by = 'popularity.desc';
+            p[`${dateField}.gte`] = daysAgoISO(90);
+            p[`${dateField}.lte`] = todayISO();
+            break;
+        case 'populer':
+            p.sort_by = 'popularity.desc';
+            break;
+        case 'rating':
+            p.sort_by = 'vote_average.desc';
+            p['vote_count.gte'] = kind === 'movie' ? 500 : 150;
+            break;
+        case 'lama':
+            p.sort_by = `${dateField}.asc`;
+            p[`${dateField}.gte`] = '1900-01-01';
+            p['vote_count.gte'] = 10;
+            break;
+    }
+    return p;
+}
+
+async function renderLatest(opts) {
+    const { kind = latestState.kind, sort = latestState.sort, page = 1 } = opts || {};
+    const app = document.getElementById('app');
+    const fresh = page === 1;
+
+    if (fresh) latestState = { kind, sort, page, results: [], total: 0, pages: 1 };
+    else latestState.page = page;
+
+    const kindLabel = kind === 'movie' ? 'Film' : 'Series';
+
+    if (fresh) {
+        app.innerHTML = `
+            <div class="provider-header">
+                <div>
+                    <h1>🆕 ${kindLabel} Terbaru</h1>
+                    <div class="sub" id="latestCount">Memuat…</div>
+                </div>
+            </div>
+            <div class="provider-tabs">
+                <button class="provider-tab ${kind === 'movie' ? 'active' : ''}"
+                        onclick="navigate('latest',{kind:'movie',sort:'${sort}'})">🎬 Film</button>
+                <button class="provider-tab ${kind === 'tv' ? 'active' : ''}"
+                        onclick="navigate('latest',{kind:'tv',sort:'${sort}'})">📺 Series</button>
+                <select class="sort-select" onchange="navigate('latest',{kind:'${kind}',sort:this.value})">
+                    ${SORT_OPTIONS.map(o => `<option value="${o.key}" ${o.key === sort ? 'selected' : ''}>${o.label}</option>`).join('')}
+                </select>
+            </div>
+            <div class="section">
+                <div class="card-grid" id="latestGrid"></div>
+                <div id="latestLoading" class="loading"><div class="loading-spinner"></div>Memuat ${kindLabel.toLowerCase()}…</div>
+            </div>
+            <div class="load-more-wrap" id="latestMore"></div>
+        `;
+    } else {
+        const more = document.getElementById('latestMore');
+        if (more) more.innerHTML = `<div class="loading"><div class="loading-spinner"></div></div>`;
+    }
+
+    try {
+        const data = await tmdb(`/discover/${kind}`, buildDiscoverParams(kind, sort, page));
+        const items = (data.results || [])
+            .filter(r => r.poster_path)
+            .map(r => { r.media_type = kind; return r; });
+
+        latestState.results = latestState.results.concat(items);
+        latestState.total = data.total_results || 0;
+        latestState.pages = data.total_pages || 1;
+
+        document.getElementById('latestLoading')?.remove();
+        renderCards('latestGrid', latestState.results);
+
+        const c = document.getElementById('latestCount');
+        if (c) {
+            const sortLabel = (SORT_OPTIONS.find(o => o.key === sort) || {}).label || '';
+            c.textContent = `${latestState.total.toLocaleString('id-ID')} judul • ${sortLabel} • diperbarui ${todayISO()}`;
+        }
+
+        const more = document.getElementById('latestMore');
+        if (more) {
+            more.innerHTML = page < latestState.pages
+                ? `<button class="hero-btn" style="background:var(--surface);font-size:0.9rem;"
+                     onclick="navigate('latest',{kind:'${kind}',sort:'${sort}',page:${page + 1}})">Muat Lebih Banyak</button>`
+                : `<div style="color:var(--text-dim);font-size:0.82rem;">Semua judul sudah dimuat</div>`;
+        }
+    } catch (e) {
+        document.getElementById('latestLoading')?.remove();
+        const more = document.getElementById('latestMore');
+        if (more) more.innerHTML = `<div style="color:var(--text-dim)">❌ ${e.message}</div>`;
+    }
+}
+
+// ===== About =====
+function renderAbout() {
+    const app = document.getElementById('app');
+    app.innerHTML = `
+        <div class="section" style="max-width:820px;margin:0 auto;">
+            <div class="about-card">
+                <div class="about-brand">CREATED BY NxrHunt Labs</div>
+                <p class="about-lead">
+                    <strong>Nonthon</strong> — streaming film &amp; series tanpa iklan, tanpa popup,
+                    tanpa redirect. Player HLS native, subtitle multi-bahasa, katalog selalu
+                    up-to-date langsung dari TMDB.
+                </p>
+                <div class="about-grid">
+                    <div class="about-item"><span>🎬</span><div><b>Katalog Live</b><br>Metadata &amp; rilis terbaru diambil real-time dari TMDB.</div></div>
+                    <div class="about-item"><span>🚫</span><div><b>Nol Iklan</b><br>Stream m3u8 diekstrak server-side, diputar di player sendiri.</div></div>
+                    <div class="about-item"><span>💬</span><div><b>Subtitle 30+ Bahasa</b><br>Termasuk Indonesia, auto-pilih saat tersedia.</div></div>
+                    <div class="about-item"><span>🔐</span><div><b>Akses Terbatas</b><br>Situs dilindungi gerbang sandi. Sesi 12 jam, cookie HttpOnly.</div></div>
+                    <div class="about-item"><span>🆕</span><div><b>Sortir Terbaru</b><br>Urutkan berdasar rilis terbaru, trending, rating, atau populer.</div></div>
+                    <div class="about-item"><span>📱</span><div><b>Responsif</b><br>Jalan mulus di HP, tablet, dan desktop.</div></div>
+                </div>
+                <div class="about-foot">
+                    <div>Dibangun oleh <b>NxrHunt Labs</b> · untuk penggunaan pribadi</div>
+                    <div style="margin-top:6px;font-size:0.78rem;color:var(--text-dim);">
+                        Metadata: TMDB · Subtitle: OpenSubtitles · Player: HLS.js
+                    </div>
+                    <button class="hero-btn" style="margin-top:16px;background:var(--surface);font-size:0.85rem;padding:10px 20px;"
+                            onclick="logout()">🚪 Keluar / Lock Situs</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function logout() {
+    try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+    location.href = '/';
+}
+
 // ===== Home =====
 async function renderHome() {
     const app = document.getElementById('app');
     app.innerHTML = `<div class="loading"><div class="loading-spinner"></div>Memuat...</div>`;
 
     try {
-        const [trending, movies, tv] = await Promise.all([
+        const [trending, movies, tv, newMovies, newTV] = await Promise.all([
             tmdb('/trending/all/week', { page: 1 }),
             tmdb('/movie/popular', { page: 1 }),
-            tmdb('/tv/popular', { page: 1 })
+            tmdb('/tv/popular', { page: 1 }),
+            tmdb('/discover/movie', buildDiscoverParams('movie', 'baru', 1)),
+            tmdb('/discover/tv', buildDiscoverParams('tv', 'baru', 1))
         ]);
 
         const heroItem = trending.results[0];
@@ -949,19 +1195,42 @@ async function renderHome() {
                 </div>
             </div>
             <div class="section">
+                <div class="section-head">
+                    <div class="section-title">🆕 Film Baru Rilis</div>
+                    <a class="section-more" onclick="navigate('latest',{kind:'movie',sort:'baru'})">Lihat semua →</a>
+                </div>
+                <div class="card-grid" id="grid-newmovies"></div>
+            </div>
+            <div class="section">
+                <div class="section-head">
+                    <div class="section-title">🆕 Series Baru Rilis</div>
+                    <a class="section-more" onclick="navigate('latest',{kind:'tv',sort:'baru'})">Lihat semua →</a>
+                </div>
+                <div class="card-grid" id="grid-newtv"></div>
+            </div>
+            <div class="section">
                 <div class="section-title">🔥 Trending Minggu Ini</div>
                 <div class="card-grid" id="grid-trending"></div>
             </div>
             <div class="section">
-                <div class="section-title">🎬 Film Populer</div>
+                <div class="section-head">
+                    <div class="section-title">🎬 Film Populer</div>
+                    <a class="section-more" onclick="navigate('latest',{kind:'movie',sort:'populer'})">Lihat semua →</a>
+                </div>
                 <div class="card-grid" id="grid-movies"></div>
             </div>
             <div class="section">
-                <div class="section-title">📺 Series Populer</div>
+                <div class="section-head">
+                    <div class="section-title">📺 Series Populer</div>
+                    <a class="section-more" onclick="navigate('latest',{kind:'tv',sort:'populer'})">Lihat semua →</a>
+                </div>
                 <div class="card-grid" id="grid-tv"></div>
             </div>
         `;
 
+        const withPoster = (arr, kind) => (arr || []).filter(r => r.poster_path).map(r => { r.media_type = kind; return r; });
+        renderCards('grid-newmovies', withPoster(newMovies.results, 'movie').slice(0, 12));
+        renderCards('grid-newtv', withPoster(newTV.results, 'tv').slice(0, 12));
         renderCards('grid-trending', trending.results.slice(0, 18));
         renderCards('grid-movies', movies.results.slice(0, 18));
         renderCards('grid-tv', tv.results.slice(0, 18));
@@ -1002,26 +1271,53 @@ async function renderMovieList(page = 1) {
     const app = document.getElementById('app');
     app.innerHTML = `<div class="loading"><div class="loading-spinner"></div>Memuat film...</div>`;
     try {
-        const [popular, topRated, nowPlaying] = await Promise.all([
+        const [newest, nowPlaying, popular, topRated] = await Promise.all([
+            tmdb('/discover/movie', buildDiscoverParams('movie', 'baru', page)),
+            tmdb('/movie/now_playing', { page }),
             tmdb('/movie/popular', { page }),
-            tmdb('/movie/top_rated', { page }),
-            tmdb('/movie/now_playing', { page })
+            tmdb('/movie/top_rated', { page })
         ]);
         app.innerHTML = `
+            <div class="provider-header">
+                <div>
+                    <h1>🎬 Film</h1>
+                    <div class="sub">Urutkan katalog lengkap →
+                        <select class="sort-select" style="margin-left:6px;"
+                                onchange="navigate('latest',{kind:'movie',sort:this.value})">
+                            <option value="">Pilih urutan…</option>
+                            ${SORT_OPTIONS.map(o => `<option value="${o.key}">${o.label}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-head">
+                    <div class="section-title">🆕 Baru Rilis</div>
+                    <a class="section-more" onclick="navigate('latest',{kind:'movie',sort:'baru'})">Lihat semua →</a>
+                </div>
+                <div class="card-grid" id="grid-newest"></div>
+            </div>
             <div class="section">
                 <div class="section-title">🎬 Sedang Tayang</div>
                 <div class="card-grid" id="grid-nowplaying"></div>
             </div>
             <div class="section">
-                <div class="section-title">🔥 Film Populer</div>
+                <div class="section-head">
+                    <div class="section-title">🔥 Film Populer</div>
+                    <a class="section-more" onclick="navigate('latest',{kind:'movie',sort:'populer'})">Lihat semua →</a>
+                </div>
                 <div class="card-grid" id="grid-popular"></div>
             </div>
             <div class="section">
-                <div class="section-title">⭐ Film Rating Tinggi</div>
+                <div class="section-head">
+                    <div class="section-title">⭐ Film Rating Tinggi</div>
+                    <a class="section-more" onclick="navigate('latest',{kind:'movie',sort:'rating'})">Lihat semua →</a>
+                </div>
                 <div class="card-grid" id="grid-toprated"></div>
             </div>
         `;
         const movieType = (item) => { item.media_type = 'movie'; return item; };
+        renderCards('grid-newest', (newest.results || []).filter(r => r.poster_path).map(movieType).slice(0, 12));
         renderCards('grid-nowplaying', nowPlaying.results.map(movieType));
         renderCards('grid-popular', popular.results.map(movieType));
         renderCards('grid-toprated', topRated.results.map(movieType));
@@ -1034,27 +1330,60 @@ async function renderTVList(page = 1) {
     const app = document.getElementById('app');
     app.innerHTML = `<div class="loading"><div class="loading-spinner"></div>Memuat series...</div>`;
     try {
-        const [popular, topRated, airingToday] = await Promise.all([
+        const [newest, airingToday, onAir, popular, topRated] = await Promise.all([
+            tmdb('/discover/tv', buildDiscoverParams('tv', 'baru', page)),
+            tmdb('/tv/airing_today', { page }),
+            tmdb('/tv/on_the_air', { page }),
             tmdb('/tv/popular', { page }),
-            tmdb('/tv/top_rated', { page }),
-            tmdb('/tv/airing_today', { page })
+            tmdb('/tv/top_rated', { page })
         ]);
         app.innerHTML = `
+            <div class="provider-header">
+                <div>
+                    <h1>📺 Series</h1>
+                    <div class="sub">Urutkan katalog lengkap →
+                        <select class="sort-select" style="margin-left:6px;"
+                                onchange="navigate('latest',{kind:'tv',sort:this.value})">
+                            <option value="">Pilih urutan…</option>
+                            ${SORT_OPTIONS.map(o => `<option value="${o.key}">${o.label}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-head">
+                    <div class="section-title">🆕 Baru Tayang Pertama</div>
+                    <a class="section-more" onclick="navigate('latest',{kind:'tv',sort:'baru'})">Lihat semua →</a>
+                </div>
+                <div class="card-grid" id="grid-newest"></div>
+            </div>
             <div class="section">
                 <div class="section-title">📺 Tayang Hari Ini</div>
                 <div class="card-grid" id="grid-airing"></div>
             </div>
             <div class="section">
-                <div class="section-title">🔥 Series Populer</div>
+                <div class="section-title">📡 Episode Baru Minggu Ini</div>
+                <div class="card-grid" id="grid-onair"></div>
+            </div>
+            <div class="section">
+                <div class="section-head">
+                    <div class="section-title">🔥 Series Populer</div>
+                    <a class="section-more" onclick="navigate('latest',{kind:'tv',sort:'populer'})">Lihat semua →</a>
+                </div>
                 <div class="card-grid" id="grid-popular"></div>
             </div>
             <div class="section">
-                <div class="section-title">⭐ Series Rating Tinggi</div>
+                <div class="section-head">
+                    <div class="section-title">⭐ Series Rating Tinggi</div>
+                    <a class="section-more" onclick="navigate('latest',{kind:'tv',sort:'rating'})">Lihat semua →</a>
+                </div>
                 <div class="card-grid" id="grid-toprated"></div>
             </div>
         `;
         const tvType = (item) => { item.media_type = 'tv'; return item; };
+        renderCards('grid-newest', (newest.results || []).filter(r => r.poster_path).map(tvType).slice(0, 12));
         renderCards('grid-airing', airingToday.results.map(tvType));
+        renderCards('grid-onair', onAir.results.map(tvType));
         renderCards('grid-popular', popular.results.map(tvType));
         renderCards('grid-toprated', topRated.results.map(tvType));
     } catch(e) {
@@ -1062,26 +1391,46 @@ async function renderTVList(page = 1) {
     }
 }
 
-async function renderTrending() {
+async function renderTrending(opts) {
+    const win = (opts && opts.window) || 'day';
     const app = document.getElementById('app');
     app.innerHTML = `<div class="loading"><div class="loading-spinner"></div>Memuat trending...</div>`;
     try {
-        const [day, week] = await Promise.all([
-            tmdb('/trending/all/day', { page: 1 }),
-            tmdb('/trending/all/week', { page: 1 })
+        const [all, movie, tv] = await Promise.all([
+            tmdb(`/trending/all/${win}`, { page: 1 }),
+            tmdb(`/trending/movie/${win}`, { page: 1 }),
+            tmdb(`/trending/tv/${win}`, { page: 1 })
         ]);
+        const winLabel = win === 'day' ? 'Hari Ini' : 'Minggu Ini';
         app.innerHTML = `
-            <div class="section">
-                <div class="section-title">🔥 Trending Hari Ini</div>
-                <div class="card-grid" id="grid-day"></div>
+            <div class="provider-header">
+                <div>
+                    <h1>🔥 Trending ${winLabel}</h1>
+                    <div class="sub">Peringkat live dari TMDB • diperbarui ${todayISO()}</div>
+                </div>
+            </div>
+            <div class="provider-tabs">
+                <button class="provider-tab ${win === 'day' ? 'active' : ''}"
+                        onclick="navigate('trending',{window:'day'})">📅 Hari Ini</button>
+                <button class="provider-tab ${win === 'week' ? 'active' : ''}"
+                        onclick="navigate('trending',{window:'week'})">📈 Minggu Ini</button>
             </div>
             <div class="section">
-                <div class="section-title">📈 Trending Minggu Ini</div>
-                <div class="card-grid" id="grid-week"></div>
+                <div class="section-title">🏆 Semua (Film + Series)</div>
+                <div class="card-grid" id="grid-all"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">🎬 Film Trending</div>
+                <div class="card-grid" id="grid-tmovie"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">📺 Series Trending</div>
+                <div class="card-grid" id="grid-ttv"></div>
             </div>
         `;
-        renderCards('grid-day', day.results);
-        renderCards('grid-week', week.results);
+        renderCards('grid-all', all.results);
+        renderCards('grid-tmovie', (movie.results || []).map(r => { r.media_type = 'movie'; return r; }));
+        renderCards('grid-ttv', (tv.results || []).map(r => { r.media_type = 'tv'; return r; }));
     } catch(e) {
         app.innerHTML = `<div class="loading">❌ ${e.message}</div>`;
     }
