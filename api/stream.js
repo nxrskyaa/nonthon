@@ -51,20 +51,23 @@ export default async function handler(req, res) {
         });
         const playerHtml = await playerResp.text();
 
-        // Extract proxied m3u8 URL
+        // Extract DIRECT m3u8 URL first (bypasses modiplay proxy → no ads, faster)
         let streamUrl = null;
-        const srcMatch = playerHtml.match(/var\s+src\s*=\s*"([^"]+serve_m3u8[^"]+)"/);
-        if (srcMatch) {
-            streamUrl = srcMatch[1].replace(/\\\//g, '/').replace(/\\u0026/g, '&');
-            if (streamUrl.startsWith('/')) {
-                streamUrl = `https://rozgarlelo.modiplay.xyz${streamUrl}`;
-            }
+        
+        // Try directSrc (direct CDN URL, no proxy, no ads)
+        const directMatch = playerHtml.match(/var\s+directSrc\s*=\s*"(https?:[^"]+master\.m3u8)"/);
+        if (directMatch) {
+            streamUrl = directMatch[1].replace(/\\\//g, '/');
         }
-
+        
+        // Fallback to proxied m3u8 URL
         if (!streamUrl) {
-            const directMatch = playerHtml.match(/var\s+directSrc\s*=\s*"(https?:[^"]+master\.m3u8)"/);
-            if (directMatch) {
-                streamUrl = directMatch[1].replace(/\\\//g, '/');
+            const srcMatch = playerHtml.match(/var\s+src\s*=\s*"([^"]+serve_m3u8[^"]+)"/);
+            if (srcMatch) {
+                streamUrl = srcMatch[1].replace(/\\\//g, '/').replace(/\\u0026/g, '&');
+                if (streamUrl.startsWith('/')) {
+                    streamUrl = `https://rozgarlelo.modiplay.xyz${streamUrl}`;
+                }
             }
         }
 
