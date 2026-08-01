@@ -1014,7 +1014,7 @@ async function loadStream(type, id, season, episode) {
         const video = document.getElementById('video');
         const streamUrl = _streamData.streamUrl;
 
-        // Setup HLS.js with fast start settings
+        // Setup HLS.js with ad-stripping + fast start
         if (window.Hls && Hls.isSupported()) {
             if (_hls) { _hls.destroy(); }
             _hls = new Hls({
@@ -1023,15 +1023,26 @@ async function loadStream(type, id, season, episode) {
                 backBufferLength: 30,
                 maxBufferLength: 30,
                 maxMaxBufferLength: 60,
-                startLevel: -1,        // auto: start with best match
+                startLevel: -1,
                 maxBufferSize: 60 * 1000 * 1000,
                 maxBufferHole: 0.5,
-                abrEwmaDefaultEstimate: 1000000, // assume 1Mbps initially → start fast
+                abrEwmaDefaultEstimate: 1000000,
                 startFragPrefetch: true,
-                progressive: true,
             });
             _hls.loadSource(streamUrl);
             _hls.attachMedia(video);
+            
+            // Ad stripping: skip fragments from known ad CDNs
+            const adDomains = ['tiktokcdn', 'ad-site-i18n', 'doubleclick', 'googleads', 'googlesyndication', 'popads', 'ad-site-sign'];
+            _hls.on(Hls.Events.FRAG_LOADING, (event, data) => {
+                const url = data.frag.url || '';
+                if (adDomains.some(d => url.includes(d))) {
+                    // Skip this ad fragment by advancing to next
+                    console.log('Ad skipped:', url.substring(0, 60));
+                    data.frag.loader = { destroy: () => {}, load: () => {} };
+                }
+            });
+            
             _hls.on(Hls.Events.MANIFEST_PARSED, (e, data) => {
                 // Populate quality selector
                 const qSel = document.getElementById('qualitySelect');
