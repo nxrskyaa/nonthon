@@ -20,6 +20,14 @@ const ALLOWED_HOSTS = [
     /^([a-z0-9-]+\.)*ffzy[a-z0-9-]*\.(com|tv)$/i,
     /^([a-z0-9-]+\.)*oag7h\.com$/i,
     /^([a-z0-9-]+\.)*vodcnd[0-9]*\.[a-z0-9-]+\.com$/i,
+    // Cover hosts for the sources added 2026-08-02 (measured from ac=detail:
+    // vod.dyttimage.com, img.ukuapi88.com, xinlangtupian.com)
+    /^([a-z0-9-]+\.)*dyttimage\.com$/i,
+    /^([a-z0-9-]+\.)*dyttzyapi\.com$/i,
+    /^([a-z0-9-]+\.)*ukuapi(88)?\.com$/i,
+    /^([a-z0-9-]+\.)*ukubf[0-9]*\.com$/i,
+    /^([a-z0-9-]+\.)*xinlangtupian\.com$/i,
+    /^([a-z0-9-]+\.)*subocaiji\.com$/i,
     // ReelShort covers
     /^([a-z0-9-]+\.)*crazymaplestudios\.com$/i,
     // NXRStream cover/image hosts

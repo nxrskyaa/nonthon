@@ -754,21 +754,50 @@
             display: flex; align-items: center; justify-content: center;
             font-size: 2rem; color: var(--text-dim);
         }
+        /* Bottom scrim: these covers have their Chinese title art baked into
+           the lower third, so a bare pill sitting on top of it looked like a
+           rendering fault. The gradient separates chrome from artwork. */
+        .dracin-poster::before {
+            content: '';
+            position: absolute; left: 0; right: 0; bottom: 0; height: 42%;
+            background: linear-gradient(to top, rgba(0,0,0,.82), rgba(0,0,0,0));
+            pointer-events: none;
+        }
         .dracin-eps {
             position: absolute; top: 8px; left: 8px;
             background: rgba(0,0,0,.78);
             color: #fff; font-size: .7rem; font-weight: 700;
             padding: 3px 8px; border-radius: 50px;
             backdrop-filter: blur(4px);
+            /* Guard against a 3-digit count meeting a long source label. */
+            max-width: calc(60% - 8px);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         .dracin-badge {
-            position: absolute; bottom: 8px; right: 8px;
-            background: rgba(0,0,0,.78);
+            position: absolute; bottom: 8px; left: 8px;
+            background: rgba(0,0,0,.6);
             color: #fff; font-size: .66rem; font-weight: 700;
             padding: 3px 7px; border-radius: 5px;
             max-width: calc(100% - 16px);
             backdrop-filter: blur(4px);
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        /* Which source a card came from. Only rendered on the mixed "Terbaru"
+           feed, where rows come from several hosts and the origin is real
+           information rather than the same string on every tile.
+           Kept neutral, not brand red: 47 red pills competed with the accent
+           colour. Solid dark + hairline border rather than a light translucent
+           fill, because a white-ish chip disappeared entirely on high-key
+           posters (bright cyan/blue covers). */
+        .dracin-srcbadge {
+            position: absolute; top: 8px; right: 8px;
+            background: rgba(0,0,0,.66);
+            border: 1px solid rgba(255,255,255,.22);
+            color: rgba(255,255,255,.94);
+            font-size: .6rem; font-weight: 700; letter-spacing: .3px;
+            padding: 2px 6px; border-radius: 4px;
+            backdrop-filter: blur(6px);
+            white-space: nowrap;
         }
         .dracin-play {
             position: absolute; inset: 0;
@@ -1265,13 +1294,35 @@ async function renderLatest(opts) {
 }
 
 // ===== DRACIN (drama pendek vertikal) =====
-const DRACIN_SOURCES = [
-    { key: 'ikun', label: 'Utama' },
-    { key: 'ffzy', label: 'Katalog Besar' },
-    { key: 'dbzy', label: 'Alternatif' },
+// Source table is fetched from /api/dracin?action=sources so the server stays
+// the single place that knows which hosts are verified. This literal is only a
+// first-paint fallback for when that call is still in flight.
+let DRACIN_SOURCES = [
+    { key: 'fresh', label: '🔥 Terbaru', note: 'Rilis terbaru dari semua sumber', shape: 'mixed' },
+    { key: 'dytt', label: 'Utama', short: 'UT', note: 'Episode terpisah · katalog terbesar', shape: 'episodes' },
+    { key: 'ffzy', label: 'Katalog Besar', short: 'KB', note: 'Episode terpisah', shape: 'episodes' },
+    { key: 'ikun', label: 'Vertikal HD', short: 'HD', note: 'Portrait asli · episode terpisah', shape: 'episodes' },
+    { key: 'uku', label: 'Update Harian', short: 'UH', note: 'Rilis terbaru · 1 file penuh', shape: 'full' },
+    { key: 'subo', label: 'Arsip Besar', short: 'AB', note: '35rb+ judul · 1 file penuh', shape: 'full' },
 ];
 
-let dracinState = { source: 'ikun', page: 1, items: [], pages: 1, total: 0, q: '' };
+let _dracinSourcesLoaded = false;
+async function loadDracinSources() {
+    if (_dracinSourcesLoaded) return;
+    try {
+        const r = await fetch('/api/dracin?action=sources');
+        const d = await r.json();
+        if (d.success && Array.isArray(d.sources) && d.sources.length) {
+            DRACIN_SOURCES = [
+                { key: 'fresh', label: '🔥 Terbaru', note: 'Rilis terbaru dari semua sumber', shape: 'mixed' },
+                ...d.sources,
+            ];
+        }
+    } catch { /* keep the fallback list */ }
+    _dracinSourcesLoaded = true;
+}
+
+let dracinState = { source: 'fresh', page: 1, items: [], pages: 1, total: 0, q: '' };
 let dracinDetail = null;
 
 function dracinImg(url) {
@@ -1286,9 +1337,12 @@ async function dracinApi(params) {
 }
 
 async function renderDracin(opts) {
+    await loadDracinSources();
     const { source = dracinState.source, page = 1, q = '' } = opts || {};
     const app = document.getElementById('app');
     const fresh = page === 1;
+    const isFreshFeed = source === 'fresh';
+    const meta = DRACIN_SOURCES.find(s => s.key === source) || {};
 
     if (fresh) dracinState = { source, page, items: [], pages: 1, total: 0, q };
     else dracinState.page = page;
@@ -1304,7 +1358,8 @@ async function renderDracin(opts) {
             <div class="provider-tabs">
                 ${DRACIN_SOURCES.map(s => `
                     <button class="provider-tab ${s.key === source ? 'active' : ''}"
-                            onclick="navigate('dracin',{source:'${s.key}'})">${s.label}</button>
+                            title="${escapeAttr(s.note || '')}"
+                            onclick="navigate('dracin',{source:'${s.key}'})">${escapeHtml(s.label)}</button>
                 `).join('')}
                 <div class="dracin-search">
                     <input type="text" id="dracinSearch" placeholder="Cari judul dracin…"
@@ -1327,9 +1382,17 @@ async function renderDracin(opts) {
     }
 
     try {
-        const data = q
-            ? await dracinApi({ action: 'search', source, q })
-            : await dracinApi({ action: 'list', source, page });
+        let data;
+        if (q) {
+            // The aggregated feed has no search endpoint of its own; search the
+            // largest per-episode catalog instead so the box always works.
+            const searchSrc = isFreshFeed ? 'dytt' : source;
+            data = await dracinApi({ action: 'search', source: searchSrc, q });
+        } else if (isFreshFeed) {
+            data = await dracinApi({ action: 'fresh', per: 14 });
+        } else {
+            data = await dracinApi({ action: 'list', source, page });
+        }
 
         dracinState.items = dracinState.items.concat(data.items || []);
         dracinState.pages = data.pages || 1;
@@ -1340,17 +1403,24 @@ async function renderDracin(opts) {
 
         const c = document.getElementById('dracinCount');
         if (c) {
-            c.textContent = q
-                ? `${dracinState.items.length} hasil untuk "${q}"`
-                : `${dracinState.total.toLocaleString('id-ID')} judul tersedia`;
+            if (q) {
+                c.textContent = `${dracinState.items.length} hasil untuk "${q}"`;
+            } else if (isFreshFeed) {
+                const failed = (data.failedSources || []).length;
+                c.textContent = `${dracinState.items.length} judul terbaru dari ${DRACIN_SOURCES.length - 1 - failed} sumber`
+                    + (failed ? ` · ${failed} sumber sedang tidak aktif` : '');
+            } else {
+                c.textContent = `${dracinState.total.toLocaleString('id-ID')} judul tersedia`
+                    + (meta.note ? ` · ${meta.note}` : '');
+            }
         }
 
         const more = document.getElementById('dracinMore');
         if (more) {
-            more.innerHTML = (!q && page < dracinState.pages)
+            more.innerHTML = (!q && !isFreshFeed && page < dracinState.pages)
                 ? `<button class="hero-btn" style="background:var(--surface);font-size:0.9rem;"
                      onclick="navigate('dracin',{source:'${source}',page:${page + 1}})">Muat Lebih Banyak</button>`
-                : (dracinState.items.length ? `<div style="color:var(--text-dim);font-size:0.82rem;">Semua judul sudah dimuat</div>` : '');
+                : (dracinState.items.length && !isFreshFeed ? `<div style="color:var(--text-dim);font-size:0.82rem;">Semua judul sudah dimuat</div>` : '');
         }
 
         if (dracinState.items.length === 0) {
@@ -1373,23 +1443,32 @@ function dracinDoSearch() {
 function renderDracinCards(elId, items) {
     const el = document.getElementById(elId);
     if (!el) return;
-    el.innerHTML = items.map(it => `
+    const showSrc = items.length && new Set(items.map(i => i.src)).size > 1;
+    const srcMeta = k => DRACIN_SOURCES.find(s => s.key === k) || {};
+    el.innerHTML = items.map(it => {
+        const sm = srcMeta(it.src);
+        // Two badges carrying the same word ("Full" top-left and "Full"
+        // bottom-left) reads as duplicated data, so the count slot is only
+        // rendered when it actually carries a number.
+        const epsBadge = it.episodes > 1 ? `<div class="dracin-eps">${it.episodes} eps</div>` : '';
+        return `
         <div class="dracin-card" onclick="navigate('dracinDetail',{src:'${it.src}',id:${it.id}})">
             <div class="dracin-poster">
                 ${it.pic
                     ? `<img src="${dracinImg(it.pic)}" alt="${escapeAttr(it.title)}" loading="lazy"
                            onerror="this.parentElement.classList.add('noimg')">`
                     : ''}
-                <div class="dracin-eps">${it.episodes > 1 ? it.episodes + ' eps' : 'Full'}</div>
+                ${epsBadge}
                 ${it.remarks ? `<div class="dracin-badge">${escapeHtml(it.remarks)}</div>` : ''}
+                ${showSrc ? `<div class="dracin-srcbadge" title="${escapeAttr(sm.label || it.src)}">${escapeHtml(sm.short || (sm.label || it.src).slice(0, 2).toUpperCase())}</div>` : ''}
                 <div class="dracin-play">▶</div>
             </div>
             <div class="dracin-body">
-                <div class="dracin-title" title="${escapeAttr(it.titleOrig || it.title)}">${escapeHtml(it.title)}</div>
+                <div class="dracin-title" title="${escapeAttr(it.title)}${it.titleOrig && it.titleOrig !== it.title ? ' — ' + escapeAttr(it.titleOrig) : ''}">${escapeHtml(it.title)}</div>
                 <div class="dracin-meta">${[it.year, it.area].filter(Boolean).join(' • ')}</div>
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 function escapeHtml(s) {
@@ -1482,7 +1561,7 @@ async function renderDracinPlayer({ src, id, ep }) {
                 <video id="dracinVideo" controls autoplay playsinline
                        style="width:100%;height:100%;object-fit:contain;background:#000;"></video>
                 <div id="dracinErr" class="dracin-err" style="display:none;">
-                    ⚠️ Episode ini gagal diputar.
+                    <div class="dracin-err-msg">⚠️ Episode ini gagal diputar.</div>
                     <button class="hero-btn" style="font-size:0.82rem;padding:8px 16px;margin-top:10px;"
                             onclick="navigate('dracinPlayer',{src:'${src}',id:${id},ep:${epNum}})">Coba Lagi</button>
                 </div>
@@ -1514,11 +1593,52 @@ async function renderDracinPlayer({ src, id, ep }) {
 
     const video = document.getElementById('dracinVideo');
     const errBox = document.getElementById('dracinErr');
+    const stage = document.querySelector('.dracin-stage');
+
+    // The catalogs are NOT uniformly portrait. Measured per host:
+    //   ikun / uku / subo  -> 720x1280, 1080x1920, 1280x2274  (portrait)
+    //   ffzy / dytt        -> 1256x720 on many titles          (landscape)
+    // A fixed 9/16 stage pillarboxes the landscape ones badly, so the stage
+    // aspect is set from the real decoded dimensions once they are known.
+    function fitStage() {
+        if (!stage || !video.videoWidth || !video.videoHeight) return;
+        const ratio = video.videoWidth / video.videoHeight;
+        if (ratio > 1.05) {
+            // Landscape source: give it a wide stage instead of black bars.
+            stage.style.aspectRatio = '16 / 9';
+            stage.style.maxWidth = '900px';
+        } else {
+            stage.style.aspectRatio = '9 / 16';
+            stage.style.maxWidth = '430px';
+        }
+    }
+    video.addEventListener('loadedmetadata', fitStage);
+    video.addEventListener('resize', fitStage);
+
+    function showError(msg) {
+        if (!errBox) return;
+        errBox.querySelector('.dracin-err-msg').textContent = msg;
+        errBox.style.display = 'flex';
+    }
+    function hideError() {
+        if (errBox) errBox.style.display = 'none';
+    }
+
+    // Merged full-series playlists are 500–5,700 segments; the slowest variant
+    // playlist measured took 71 s to load. Without a timeout that reads to the
+    // user as "won't play" with no feedback, so fail loudly at 25 s instead.
+    let manifestOk = false;
+    const manifestTimer = setTimeout(() => {
+        if (!manifestOk) {
+            showError('Sumber ini lambat merespons. Coba episode lain atau sumber lain.');
+        }
+    }, 25000);
 
     // Media CDNs for these sources send Access-Control-Allow-Origin: *,
     // so hls.js can load the playlist directly with no relay.
     if (window.Hls && Hls.isSupported()) {
         if (_dracinHls) { try { _dracinHls.destroy(); } catch (e) {} }
+        let netRetries = 0;
         _dracinHls = new Hls({
             enableWorker: true,
             maxBufferLength: 20,
@@ -1526,10 +1646,17 @@ async function renderDracinPlayer({ src, id, ep }) {
             abrEwmaDefaultEstimate: 1200000,
             startFragPrefetch: true,
             startLevel: -1,
+            manifestLoadingTimeOut: 20000,
+            manifestLoadingMaxRetry: 2,
+            levelLoadingTimeOut: 20000,
+            fragLoadingTimeOut: 30000,
         });
         _dracinHls.loadSource(cur.url);
         _dracinHls.attachMedia(video);
         _dracinHls.on(Hls.Events.MANIFEST_PARSED, (e, data) => {
+            manifestOk = true;
+            clearTimeout(manifestTimer);
+            hideError();
             const q = document.getElementById('dracinQuality');
             if (q && data.levels.length > 1) {
                 q.innerHTML = '<option value="-1">Auto</option>' +
@@ -1541,18 +1668,39 @@ async function renderDracinPlayer({ src, id, ep }) {
         _dracinHls.on(Hls.Events.ERROR, (e, data) => {
             if (!data.fatal) return;
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                setTimeout(() => { try { _dracinHls.startLoad(); } catch (x) {} }, 1000);
+                // Bounded retry: an unbounded startLoad() loop hides a dead
+                // host behind a spinner forever.
+                if (++netRetries <= 3) {
+                    setTimeout(() => { try { _dracinHls.startLoad(); } catch (x) {} }, 1000 * netRetries);
+                } else {
+                    clearTimeout(manifestTimer);
+                    showError('Episode ini tidak dapat dimuat dari sumbernya.');
+                }
             } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                _dracinHls.recoverMediaError();
+                try { _dracinHls.recoverMediaError(); } catch (x) {
+                    showError('Gagal memutar stream ini.');
+                }
             } else {
-                errBox.style.display = 'block';
+                clearTimeout(manifestTimer);
+                showError('Episode ini gagal diputar.');
             }
         });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari / iOS: native HLS.
         video.src = cur.url;
+        video.addEventListener('loadedmetadata', () => {
+            manifestOk = true;
+            clearTimeout(manifestTimer);
+            hideError();
+        });
+        video.addEventListener('error', () => {
+            clearTimeout(manifestTimer);
+            showError('Episode ini gagal diputar.');
+        });
         video.play().catch(() => {});
     } else {
-        errBox.style.display = 'block';
+        clearTimeout(manifestTimer);
+        showError('Browser ini tidak mendukung HLS.');
     }
 
     // Auto-advance to the next episode, the way short-drama apps behave.
