@@ -32,6 +32,7 @@ const routes = {
     '/api/subs': './api/subs.js',
     '/api/sub': './api/sub.js',
     '/api/dracin': './api/dracin.js',
+    '/api/dracin-id': './api/dracin-id.js',
     '/api/dracin-img': './api/dracin-img.js',
     '/api/nxrstream': './api/nxrstream.js',
 };

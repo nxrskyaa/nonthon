@@ -984,7 +984,7 @@ const REGION_ID_OK = new Set([8, 1899, 283, 350, 11, 538]);
 // Verified empty: TMDB has no series catalog for these provider IDs in any region
 const NO_TV = new Set([638]);
 
-let providerState = { id: null, tab: 'movie', page: 1, results: [], total: 0 };
+let providerState = { id: null, tab: 'movie', sort: 'populer', page: 1, results: [], total: 0 };
 
 // ===== API =====
 async function tmdb(path, params = {}) {
@@ -1066,13 +1066,16 @@ function toggleMobileMenu() {
 }
 
 // ===== Provider page =====
-async function renderProvider({id, tab, page}) {
+async function renderProvider({id, tab, page, sort}) {
     const p = PROVIDER_MAP[id];
     if (!p) return navigate('home');
 
     const isNewProvider = providerState.id !== id;
     providerState.id = id;
     providerState.tab = tab || (isNewProvider ? 'movie' : providerState.tab);
+    // Reset to default sort when switching platform; otherwise keep the
+    // chosen filter as the user pages / flips Film<->Series.
+    providerState.sort = sort || (isNewProvider ? 'populer' : providerState.sort);
     providerState.page = page || 1;
     if (providerState.page === 1) providerState.results = [];
 
@@ -1082,6 +1085,7 @@ async function renderProvider({id, tab, page}) {
 
     const app = document.getElementById('app');
     const kind = providerState.tab === 'tv' ? 'tv' : 'movie';
+    const sortKey = providerState.sort;
 
     if (providerState.page === 1) {
         app.innerHTML = `
@@ -1093,8 +1097,11 @@ async function renderProvider({id, tab, page}) {
                 </div>
             </div>
             <div class="provider-tabs">
-                <button class="provider-tab ${kind==='movie'?'active':''}" onclick="navigate('provider',{id:${id},tab:'movie'})">🎬 Film</button>
-                <button class="provider-tab ${kind==='tv'?'active':''}" onclick="navigate('provider',{id:${id},tab:'tv'})">📺 Series</button>
+                <button class="provider-tab ${kind==='movie'?'active':''}" onclick="navigate('provider',{id:${id},tab:'movie',sort:'${sortKey}'})">🎬 Film</button>
+                <button class="provider-tab ${kind==='tv'?'active':''}" onclick="navigate('provider',{id:${id},tab:'tv',sort:'${sortKey}'})">📺 Series</button>
+                <select class="sort-select" onchange="navigate('provider',{id:${id},tab:'${kind}',sort:this.value})">
+                    ${SORT_OPTIONS.map(o => `<option value="${o.key}" ${o.key === sortKey ? 'selected' : ''}>${o.label}</option>`).join('')}
+                </select>
             </div>
             <div class="section">
                 <div class="card-grid" id="providerGrid"></div>
@@ -1120,21 +1127,18 @@ async function renderProvider({id, tab, page}) {
 
         // Region ID for providers with local coverage, otherwise US (much bigger catalog)
         const region = REGION_ID_OK.has(id) ? 'ID' : 'US';
-        let data = await tmdb(`/discover/${kind}`, {
-            watch_region: region,
+        // Reuse the same sort semantics as the "Terbaru" browse page, then pin
+        // the watch provider + region on top so the filter applies per platform.
+        const buildQuery = (reg) => ({
+            ...buildDiscoverParams(kind, sortKey, providerState.page),
+            watch_region: reg,
             with_watch_providers: id,
-            sort_by: 'popularity.desc',
-            page: providerState.page,
         });
+        let data = await tmdb(`/discover/${kind}`, buildQuery(region));
 
         // Fallback to US if the ID region returns nothing
         if ((!data.results || data.results.length === 0) && region === 'ID') {
-            data = await tmdb(`/discover/${kind}`, {
-                watch_region: 'US',
-                with_watch_providers: id,
-                sort_by: 'popularity.desc',
-                page: providerState.page,
-            });
+            data = await tmdb(`/discover/${kind}`, buildQuery('US'));
         }
 
         const items = (data.results || []).map(r => { r.media_type = kind; return r; });
@@ -1156,7 +1160,7 @@ async function renderProvider({id, tab, page}) {
             const hasMore = providerState.page < (data.total_pages || 1);
             wrap.innerHTML = hasMore
                 ? `<button class="hero-btn" style="background:var(--surface);font-size:0.9rem;"
-                     onclick="navigate('provider',{id:${id},tab:'${kind}',page:${providerState.page + 1}})">
+                     onclick="navigate('provider',{id:${id},tab:'${kind}',sort:'${sortKey}',page:${providerState.page + 1}})">
                      Muat Lebih Banyak
                    </button>`
                 : (providerState.results.length ? `<div style="color:var(--text-dim);font-size:0.82rem;">Semua judul sudah dimuat</div>` : '');
@@ -1307,18 +1311,31 @@ let DRACIN_SOURCES = [
 ];
 
 let _dracinSourcesLoaded = false;
+// Sources served by /api/dracin-id (Indonesian-localized) rather than the
+// MacCMS /api/dracin endpoint. Their episodes resolve their media URL lazily.
+const DRACIN_ID_SOURCES = new Set(['reelshort']);
 async function loadDracinSources() {
     if (_dracinSourcesLoaded) return;
+    let macc = [];
+    let idsrc = [];
     try {
         const r = await fetch('/api/dracin?action=sources');
         const d = await r.json();
-        if (d.success && Array.isArray(d.sources) && d.sources.length) {
-            DRACIN_SOURCES = [
-                { key: 'fresh', label: '🔥 Terbaru', note: 'Rilis terbaru dari semua sumber', shape: 'mixed' },
-                ...d.sources,
-            ];
-        }
-    } catch { /* keep the fallback list */ }
+        if (d.success && Array.isArray(d.sources)) macc = d.sources;
+    } catch { /* keep fallback */ }
+    try {
+        const r2 = await fetch('/api/dracin-id?action=sources');
+        const d2 = await r2.json();
+        if (d2.success && Array.isArray(d2.sources)) idsrc = d2.sources;
+    } catch { /* localized sources optional */ }
+    if (macc.length || idsrc.length) {
+        DRACIN_SOURCES = [
+            { key: 'fresh', label: '🔥 Terbaru', note: 'Rilis terbaru dari semua sumber', shape: 'mixed' },
+            // Indonesian-localized sources first — this is what the user asked for.
+            ...idsrc,
+            ...macc,
+        ];
+    }
     _dracinSourcesLoaded = true;
 }
 
@@ -1330,7 +1347,10 @@ function dracinImg(url) {
 }
 
 async function dracinApi(params) {
-    const r = await fetch('/api/dracin?' + new URLSearchParams(params));
+    // Indonesian-localized sources live behind /api/dracin-id; everything else
+    // (the MacCMS catalogs + the mixed "fresh" feed) behind /api/dracin.
+    const base = DRACIN_ID_SOURCES.has(params.source) ? '/api/dracin-id' : '/api/dracin';
+    const r = await fetch(base + '?' + new URLSearchParams(params));
     const d = await r.json();
     if (!r.ok || !d.success) throw new Error(d.detail || d.error || 'gagal memuat');
     return d;
@@ -1452,7 +1472,7 @@ function renderDracinCards(elId, items) {
         // rendered when it actually carries a number.
         const epsBadge = it.episodes > 1 ? `<div class="dracin-eps">${it.episodes} eps</div>` : '';
         return `
-        <div class="dracin-card" onclick="navigate('dracinDetail',{src:'${it.src}',id:${it.id}})">
+        <div class="dracin-card" onclick="navigate('dracinDetail',{src:'${it.src}',id:'${String(it.id).replace(/'/g, '')}'})">
             <div class="dracin-poster">
                 ${it.pic
                     ? `<img src="${dracinImg(it.pic)}" alt="${escapeAttr(it.title)}" loading="lazy"
@@ -1502,7 +1522,7 @@ async function renderDracinDetail({ src, id }) {
                     </div>
                     ${it.genre ? `<div class="genres"><span class="genre-tag">${escapeHtml(it.genre)}</span></div>` : ''}
                     <p class="overview">${escapeHtml(it.overview) || 'Tidak ada sinopsis.'}</p>
-                    <button class="play-btn" onclick="navigate('dracinPlayer',{src:'${it.src}',id:${it.id},ep:1})">▶ Nonton Eps 1</button>
+                    <button class="play-btn" onclick="navigate('dracinPlayer',{src:'${it.src}',id:'${String(it.id).replace(/'/g, '')}',ep:1})">▶ Nonton Eps 1</button>
                     <button class="hero-btn" style="background:var(--surface);font-size:0.85rem;padding:10px 20px;margin-left:8px;"
                             onclick="navigate('dracin',{source:'${it.src}'})">← Kembali</button>
                 </div>
@@ -1511,7 +1531,7 @@ async function renderDracinDetail({ src, id }) {
                 <div class="section-title">Daftar Episode</div>
                 <div class="dracin-ep-grid">
                     ${it.epList.map((ep, i) => `
-                        <div class="dracin-ep" onclick="navigate('dracinPlayer',{src:'${it.src}',id:${it.id},ep:${i + 1}})">
+                        <div class="dracin-ep" onclick="navigate('dracinPlayer',{src:'${it.src}',id:'${String(it.id).replace(/'/g, '')}',ep:${i + 1}})">
                             ${escapeHtml(ep.label || ('Eps ' + (i + 1)))}
                         </div>
                     `).join('')}
@@ -1551,10 +1571,14 @@ async function renderDracinPlayer({ src, id, ep }) {
         return;
     }
 
+    // ID-safe: book ids from the localized sources are hex strings, so every
+    // navigate() call embeds the id as a quoted string literal.
+    const idLit = `'${String(id).replace(/'/g, '')}'`;
+
     app.innerHTML = `
         <div class="dracin-player-wrap">
             <div class="dracin-player-top">
-                <div class="player-back" onclick="navigate('dracinDetail',{src:'${src}',id:${id}})">← Kembali</div>
+                <div class="player-back" onclick="navigate('dracinDetail',{src:'${src}',id:${idLit}})">← Kembali</div>
                 <div class="dracin-player-title">${escapeHtml(it.title)} — ${escapeHtml(cur.label)}</div>
             </div>
             <div class="dracin-stage">
@@ -1563,26 +1587,26 @@ async function renderDracinPlayer({ src, id, ep }) {
                 <div id="dracinErr" class="dracin-err" style="display:none;">
                     <div class="dracin-err-msg">⚠️ Episode ini gagal diputar.</div>
                     <button class="hero-btn" style="font-size:0.82rem;padding:8px 16px;margin-top:10px;"
-                            onclick="navigate('dracinPlayer',{src:'${src}',id:${id},ep:${epNum}})">Coba Lagi</button>
+                            onclick="navigate('dracinPlayer',{src:'${src}',id:${idLit},ep:${epNum}})">Coba Lagi</button>
                 </div>
             </div>
             <div class="dracin-player-ctrl">
                 <button class="provider-tab" ${idx === 0 ? 'disabled' : ''}
-                        onclick="navigate('dracinPlayer',{src:'${src}',id:${id},ep:${epNum - 1}})">⏮ Sebelumnya</button>
-                <select class="sort-select" style="margin:0;" onchange="navigate('dracinPlayer',{src:'${src}',id:${id},ep:parseInt(this.value)})">
+                        onclick="navigate('dracinPlayer',{src:'${src}',id:${idLit},ep:${epNum - 1}})">⏮ Sebelumnya</button>
+                <select class="sort-select" style="margin:0;" onchange="navigate('dracinPlayer',{src:'${src}',id:${idLit},ep:parseInt(this.value)})">
                     ${it.epList.map((e2, i) => `<option value="${i + 1}" ${i === idx ? 'selected' : ''}>${escapeHtml(e2.label || ('Eps ' + (i + 1)))}</option>`).join('')}
                 </select>
                 <select id="dracinQuality" class="sort-select" style="margin:0;display:none;"
                         onchange="dracinSetQuality(this.value)"></select>
                 <button class="provider-tab" ${idx >= total - 1 ? 'disabled' : ''}
-                        onclick="navigate('dracinPlayer',{src:'${src}',id:${id},ep:${epNum + 1}})">Selanjutnya ⏭</button>
+                        onclick="navigate('dracinPlayer',{src:'${src}',id:${idLit},ep:${epNum + 1}})">Selanjutnya ⏭</button>
             </div>
             <div class="section" style="padding-top:4px;">
                 <div class="section-title" style="font-size:1rem;">Episode Lain</div>
                 <div class="dracin-ep-grid">
                     ${it.epList.map((e2, i) => `
                         <div class="dracin-ep ${i === idx ? 'active' : ''}"
-                             onclick="navigate('dracinPlayer',{src:'${src}',id:${id},ep:${i + 1}})">
+                             onclick="navigate('dracinPlayer',{src:'${src}',id:${idLit},ep:${i + 1}})">
                             ${escapeHtml(e2.label || ('Eps ' + (i + 1)))}
                         </div>
                     `).join('')}
@@ -1594,6 +1618,33 @@ async function renderDracinPlayer({ src, id, ep }) {
     const video = document.getElementById('dracinVideo');
     const errBox = document.getElementById('dracinErr');
     const stage = document.querySelector('.dracin-stage');
+
+    function showError(msg) {
+        if (!errBox) return;
+        errBox.querySelector('.dracin-err-msg').textContent = msg;
+        errBox.style.display = 'flex';
+    }
+    function hideError() {
+        if (errBox) errBox.style.display = 'none';
+    }
+
+    // Localized sources (ReelShort etc.) do not ship a media URL in the episode
+    // list — the upstream rate-limits, so each episode's m3u8 is resolved only
+    // when it's actually opened. Resolve it now, before wiring up hls.js.
+    let streamUrl = cur.url;
+    if (!streamUrl && DRACIN_ID_SOURCES.has(src)) {
+        try {
+            const r = await dracinApi({ action: 'episode', source: src, id, ep: cur.ep || (idx + 1) });
+            if (r.locked) { showError('Episode ini terkunci di sumbernya.'); return; }
+            streamUrl = r.url;
+        } catch (e) {
+            showError(e.message === 'rate_limited'
+                ? 'Sumber sedang membatasi permintaan. Tunggu sebentar lalu coba lagi.'
+                : 'Gagal mengambil tautan episode dari sumbernya.');
+            return;
+        }
+    }
+    if (!streamUrl) { showError('Episode ini tidak punya tautan yang bisa diputar.'); return; }
 
     // The catalogs are NOT uniformly portrait. Measured per host:
     //   ikun / uku / subo  -> 720x1280, 1080x1920, 1280x2274  (portrait)
@@ -1614,15 +1665,6 @@ async function renderDracinPlayer({ src, id, ep }) {
     }
     video.addEventListener('loadedmetadata', fitStage);
     video.addEventListener('resize', fitStage);
-
-    function showError(msg) {
-        if (!errBox) return;
-        errBox.querySelector('.dracin-err-msg').textContent = msg;
-        errBox.style.display = 'flex';
-    }
-    function hideError() {
-        if (errBox) errBox.style.display = 'none';
-    }
 
     // Merged full-series playlists are 500–5,700 segments; the slowest variant
     // playlist measured took 71 s to load. Without a timeout that reads to the
@@ -1651,7 +1693,7 @@ async function renderDracinPlayer({ src, id, ep }) {
             levelLoadingTimeOut: 20000,
             fragLoadingTimeOut: 30000,
         });
-        _dracinHls.loadSource(cur.url);
+        _dracinHls.loadSource(streamUrl);
         _dracinHls.attachMedia(video);
         _dracinHls.on(Hls.Events.MANIFEST_PARSED, (e, data) => {
             manifestOk = true;
@@ -1687,7 +1729,7 @@ async function renderDracinPlayer({ src, id, ep }) {
         });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari / iOS: native HLS.
-        video.src = cur.url;
+        video.src = streamUrl;
         video.addEventListener('loadedmetadata', () => {
             manifestOk = true;
             clearTimeout(manifestTimer);
