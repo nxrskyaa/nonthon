@@ -2713,13 +2713,12 @@ let _currentSource = null;
 let _retryCount = 0;
 let _openSubCache = {};
 
-// Extra embed sources (client-side iframes) offered alongside the clean native
-// servers. They load in the user's own browser (residential IP passes their
-// protection), so no server-side access is needed.
-// HANYA sumber yang terkonfirmasi bersih (tanpa iklan) yang dipasang — nxsha
-// (sumber yang dipakai vidbox di /watch/*, dicek user: tanpa iklan).
+// Extra embed source (client-side iframe) offered alongside the clean native
+// servers. Loads in the user's own browser (residential IP passes its
+// protection), so no server-side access is needed. Label is rebranded so the
+// upstream host isn't advertised in the UI.
 const IFRAME_SOURCES = [
-    { key: 'nxsha', name: 'Nxsha',
+    { key: 'vip', name: 'NXR-VIP SERVER',
       movie: id => `https://nxsha.space/embed/movie/${id}?lang=en&autoplay=true&sub=en`,
       tv: (id, s, e) => `https://nxsha.space/embed/tv/${id}/${s}/${e}?lang=en&autoplay=true&sub=en` },
 ];
