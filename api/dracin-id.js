@@ -28,8 +28,8 @@ const SANSEKAI = 'https://api.sansekai.my.id/api';
 
 export const ID_SOURCES = {
     reelshort: {
-        label: '🔊 ReelShort ID',
-        short: 'RS',
+        label: '🔊 Drama ID',
+        short: 'ID',
         note: 'Sub/Dub Indonesia · verified playable',
         shape: 'episodes',
     },

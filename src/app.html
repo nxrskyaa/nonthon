@@ -1628,7 +1628,7 @@ async function renderDracinPlayer({ src, id, ep }) {
         if (errBox) errBox.style.display = 'none';
     }
 
-    // Localized sources (ReelShort etc.) do not ship a media URL in the episode
+    // Localized sources do not ship a media URL in the episode
     // list — the upstream rate-limits, so each episode's m3u8 is resolved only
     // when it's actually opened. Resolve it now, before wiring up hls.js.
     let streamUrl = cur.url;
@@ -1646,9 +1646,8 @@ async function renderDracinPlayer({ src, id, ep }) {
     }
     if (!streamUrl) { showError('Episode ini tidak punya tautan yang bisa diputar.'); return; }
 
-    // The catalogs are NOT uniformly portrait. Measured per host:
-    //   ikun / uku / subo  -> 720x1280, 1080x1920, 1280x2274  (portrait)
-    //   ffzy / dytt        -> 1256x720 on many titles          (landscape)
+    // The catalogs are NOT uniformly portrait — some hosts serve portrait
+    // (720x1280, 1080x1920, 1280x2274), others landscape (1256x720).
     // A fixed 9/16 stage pillarboxes the landscape ones badly, so the stage
     // aspect is set from the real decoded dimensions once they are known.
     function fitStage() {
@@ -2786,9 +2785,10 @@ function renderServerBar() {
     if (!bar || !btns) return;
     if (_sources.length <= 1) { bar.style.display = 'none'; return; }
     bar.style.display = 'flex';
+    // Numbered-only labels: real upstream names never appear in the UI.
     btns.innerHTML = _sources.map((s, i) =>
         `<button class="server-btn ${i === _sourceIdx ? 'active' : ''}" onclick="_playSource(${i})">` +
-        `${escapeHtml(s.name || ('Server ' + (i + 1)))}</button>`
+        `${escapeHtml('NXR VIP ' + (i + 1))}</button>`
     ).join('');
 }
 
@@ -2819,7 +2819,7 @@ function _playSource(idx) {
     const qSel = document.getElementById('qualitySelect');
     if (qSel) { qSel.innerHTML = ''; qSel.style.display = 'none'; }
 
-    // ── Iframe source (vidbox-style embed fallback) ──
+    // ── Iframe source (embed fallback) ──
     if (src.iframe && src.iframeUrl) {
         if (_hls) { _hls.destroy(); _hls = null; }
         if (video) video.style.display = 'none';
@@ -2919,8 +2919,8 @@ async function loadSubtitles(type, id, season, episode) {
     subSel.style.display = 'inline-block';
     subSel.disabled = true;
 
-    // OpenSubtitles don't depend on the chosen server — cache per title so
-    // switching servers doesn't re-fetch them every time.
+    // External subtitle lookups don't depend on the chosen server — cache per
+    // title so switching servers doesn't re-fetch them every time.
     const osKey = `${type}|${id}|${season || 1}|${episode || 1}`;
     let online = _openSubCache[osKey] || [];
     if (!_openSubCache[osKey]) {
