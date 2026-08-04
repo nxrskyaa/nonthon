@@ -2783,7 +2783,9 @@ function renderServerBar() {
     const bar = document.getElementById('serverBar');
     const btns = document.getElementById('serverBtns');
     if (!bar || !btns) return;
-    if (_sources.length <= 1) { bar.style.display = 'none'; return; }
+    // Show as long as there is at least one source — a single fallback source
+    // must still be visible/selectable, never silently hidden.
+    if (_sources.length < 1) { bar.style.display = 'none'; return; }
     bar.style.display = 'flex';
     // Numbered-only labels: real upstream names never appear in the UI.
     btns.innerHTML = _sources.map((s, i) =>
