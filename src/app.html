@@ -2700,6 +2700,9 @@ async function renderPlayer({type, id, season, episode}) {
                         <video id="video" controls autoplay playsinline 
                             style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;background:#000;">
                         </video>
+                        <iframe id="playerIframe" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen
+                            style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;display:none;background:#000;"
+                            referrerpolicy="no-referrer"></iframe>
                     </div>
                 </div>
                 <div id="player-error" style="display:none;padding:20px;text-align:center;">
@@ -2734,6 +2737,25 @@ let _currentSource = null;
 let _retryCount = 0;
 let _openSubCache = {};
 
+// Extra embed sources (client-side iframes) offered alongside the clean native
+// servers. They load in the user's own browser (residential IP passes their
+// protection), so no server-side access is needed. In-player ads on these
+// sources are handled by the user's ad blocker.
+const IFRAME_SOURCES = [
+    { key: 'nxsha', name: 'Nxsha',
+      movie: id => `https://nxsha.space/embed/movie/${id}?lang=en&autoplay=true&sub=en`,
+      tv: (id, s, e) => `https://nxsha.space/embed/tv/${id}/${s}/${e}?lang=en&autoplay=true&sub=en` },
+    { key: '2embed', name: '2Embed',
+      movie: id => `https://2embed.stream/embed/movie/${id}`,
+      tv: (id, s, e) => `https://2embed.stream/embed/tv/${id}/${s}/${e}` },
+    { key: 'flicky', name: 'Flicky',
+      movie: id => `https://flicky.host/embed/movie/?id=${id}`,
+      tv: (id, s, e) => `https://flicky.host/embed/tv/?id=${id}&s=${s}&e=${e}` },
+    { key: 'frembed', name: 'Frembed',
+      movie: id => `https://frembed.hair/api/film.php?id=${id}`,
+      tv: null },
+];
+
 async function loadStream(type, id, season, episode) {
     const loading = document.getElementById('player-loading');
     const area = document.getElementById('player-area');
@@ -2750,12 +2772,30 @@ async function loadStream(type, id, season, episode) {
         const resp = await fetch(`/api/stream?${params}`);
         _streamData = await resp.json();
 
-        if (!_streamData.success) throw new Error(_streamData.error || 'Unknown error');
+        if (_streamData.success) {
+            // Back-compat: if the endpoint returned a single stream, wrap it.
+            _sources = (_streamData.sources && _streamData.sources.length)
+                ? _streamData.sources
+                : [{ name: 'Server', streamUrl: _streamData.streamUrl, subtitles: _streamData.subtitles || [] }];
+        } else {
+            // No native source — iframe fallbacks may still save the episode.
+            _sources = [];
+        }
 
-        // Back-compat: if the endpoint returned a single stream, wrap it.
-        _sources = (_streamData.sources && _streamData.sources.length)
-            ? _streamData.sources
-            : [{ name: 'Server', streamUrl: _streamData.streamUrl, subtitles: _streamData.subtitles || [] }];
+        // Append client-side iframe sources as extra selectable servers.
+        const iframeSrcs = IFRAME_SOURCES
+            .filter(s => type === 'movie' ? !!s.movie : !!s.tv)
+            .map(s => ({
+                name: s.name + ' ⧉',
+                iframe: true,
+                iframeUrl: type === 'movie' ? s.movie(id) : s.tv(id, season || 1, episode || 1),
+                streamUrl: '',
+                subtitles: [],
+            }));
+        _sources = _sources.concat(iframeSrcs);
+
+        if (_sources.length === 0) throw new Error(_streamData.error || 'Unknown error');
+
         _sourceIdx = 0;
         _currentSource = _sources[0];
 
@@ -2798,7 +2838,7 @@ function showPlayerError() {
     }
 }
 
-/** Switch to a specific server and (re)attach HLS. */
+/** Switch to a specific server and (re)attach HLS (or iframe for embeds). */
 function _playSource(idx) {
     const src = _sources[idx];
     if (!src) return;
@@ -2808,9 +2848,24 @@ function _playSource(idx) {
     renderServerBar();
 
     const video = document.getElementById('video');
-    const streamUrl = src.streamUrl;
+    const iframe = document.getElementById('playerIframe');
     const qSel = document.getElementById('qualitySelect');
     if (qSel) { qSel.innerHTML = ''; qSel.style.display = 'none'; }
+
+    // ── Iframe source (vidbox-style embed fallback) ──
+    if (src.iframe && src.iframeUrl) {
+        if (_hls) { _hls.destroy(); _hls = null; }
+        if (video) video.style.display = 'none';
+        if (iframe) { iframe.src = src.iframeUrl; iframe.style.display = 'block'; }
+        const subSel = document.getElementById('subSelect');
+        if (subSel) { subSel.innerHTML = '<option value="">CC Off</option>'; subSel.style.display = 'none'; }
+        return;
+    }
+
+    // ── Native HLS mode ──
+    if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
+    if (video) video.style.display = '';
+    const streamUrl = src.streamUrl;
 
     if (_hls) { _hls.destroy(); _hls = null; }
 
