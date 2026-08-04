@@ -1860,7 +1860,7 @@ function renderNxrCards(elId, items) {
     const el = document.getElementById(elId);
     if (!el) return;
     el.innerHTML = items.map(it => {
-        const title = escapeHtml(it.name || it.enName || 'Unknown');
+        const title = escapeHtml(it.title || it.enName || it.name || 'Unknown');
         const poster = it.coverVerticalUrl ? nxrImg(it.coverVerticalUrl) : '';
         const year = it.year || '';
         const score = it.score ? `★ ${Number(it.score).toFixed(1)}` : '';
@@ -1903,10 +1903,10 @@ async function renderNxrDetail({ id, category }) {
                 ${backdrop ? `<div class="detail-bg" style="background-image:url('${backdrop}')"></div>` : ''}
                 <div class="detail-overlay"></div>
                 <div class="detail-content">
-                    ${poster ? `<div class="detail-poster"><img src="${poster}" alt="${escapeAttr(it.name)}"></div>` : ''}
+                    ${poster ? `<div class="detail-poster"><img src="${poster}" alt="${escapeAttr(it.title || it.enName || it.name)}"></div>` : ''}
                     <div class="detail-info">
-                        <h1>${escapeHtml(it.name)}</h1>
-                        ${it.enName && it.enName !== it.name ? `<p class="tagline">${escapeHtml(it.enName)}</p>` : ''}
+                        <h1>${escapeHtml(it.title || it.enName || it.name)}</h1>
+                        ${it.name && it.name !== (it.title || it.enName || it.name) ? `<p class="tagline">${escapeHtml(it.name)}</p>` : ''}
                         <div class="meta-row">
                             ${score ? `<span class="rating">${score}</span>` : ''}
                             ${year ? `<span>📅 ${escapeHtml(year)}</span>` : ''}
@@ -1975,7 +1975,7 @@ async function renderNxrPlayer({ id, category, ep }) {
         <div class="player-wrap">
             <div class="player-container">
                 <div class="player-back" onclick="navigate('nxrDetail',{id:'${id}',category:${category}})">← Kembali</div>
-                <div class="player-title">${escapeHtml(it.name)} — ${escapeHtml(cur.label)}</div>
+                <div class="player-title">${escapeHtml(it.title || it.enName || it.name)} — ${escapeHtml(cur.label)}</div>
                 <div id="nxr-loading" class="loading"><div class="loading-spinner"></div>Mengambil stream…</div>
                 <div id="nxr-area" style="display:none;">
                     <div class="player-frame-wrap" style="background:#000;">
@@ -2551,15 +2551,25 @@ async function renderDetail({type, id, season, episode}) {
             </div>
         `;
 
-        // TV: season/episode selector
+        // TV: season/episode selector — filtered to seasons that actually have
+        // a playable source, so a wrong TMDB season count (e.g. a 1-season show
+        // listed as 2) doesn't offer a dead season.
+        let activeSeason = parseInt(season) || 1;
         if (type === 'tv' && data.seasons && data.seasons.length > 0) {
-            const validSeasons = data.seasons.filter(s => s.season_number > 0 || data.seasons.length === 1);
+            let validSeasons = data.seasons.filter(s => s.season_number > 0 || data.seasons.length === 1);
+            validSeasons = await filterAvailableSeasons(id, validSeasons);
+            if (validSeasons.length === 0) {
+                validSeasons = data.seasons.filter(s => s.season_number > 0 || data.seasons.length === 1);
+            }
+            if (!validSeasons.some(s => s.season_number === activeSeason)) {
+                activeSeason = validSeasons[0] ? validSeasons[0].season_number : 1;
+            }
             html += `
                 <div class="section" id="tv-seasons">
                     <div class="section-title">Episodes</div>
                     <div class="season-selector">
                         <select id="seasonSelect" onchange="loadSeason(${id}, this.value)">
-                            ${validSeasons.map(s => `<option value="${s.season_number}" ${parseInt(season||1)===s.season_number?'selected':''}>Musim ${s.season_number} (${s.episode_count} eps)</option>`).join('')}
+                            ${validSeasons.map(s => `<option value="${s.season_number}" ${activeSeason===s.season_number?'selected':''}>Musim ${s.season_number} (${s.episode_count} eps)</option>`).join('')}
                         </select>
                     </div>
                     <div class="episode-grid" id="episodeGrid"></div>
@@ -2599,13 +2609,29 @@ async function renderDetail({type, id, season, episode}) {
             renderCards('grid-recs', recItems);
         }
 
-        // Load episodes for TV
-        if (type === 'tv' && season) {
-            loadSeason(id, season);
+        // Load episodes for TV (use the season that survived filtering)
+        if (type === 'tv' && activeSeason) {
+            loadSeason(id, activeSeason);
         }
     } catch(e) {
         app.innerHTML = `<div class="loading">❌ ${e.message}</div>`;
     }
+}
+
+/** Probe which seasons actually have a playable source, so the season
+ * selector only shows seasons that exist (TMDB sometimes lists extra seasons
+ * for a show — e.g. a 1-season show listed as 2). */
+async function filterAvailableSeasons(id, seasons) {
+    const results = await Promise.all(seasons.map(async s => {
+        try {
+            const r = await fetch(`/api/stream?probe=1&type=tv&id=${id}&s=${s.season_number}&e=1`);
+            const j = await r.json();
+            return { s, ok: !!(j.success && j.available) };
+        } catch { return { s, ok: true }; }
+    }));
+    const kept = results.filter(r => r.ok).map(r => r.s);
+    // If the probe filtered everything (e.g. source temporarily down), keep all.
+    return kept.length ? kept : seasons;
 }
 
 async function loadSeason(id, seasonNum) {

@@ -122,6 +122,9 @@ function categoryFromSubType(subType) {
 function mapListItem(it) {
     return {
         id: it.id,
+        // Prefer the English title over the (often Korean) native `name` so
+        // Drakor/Asian titles render in English/Indonesian, not Hangul.
+        title: it.enName || it.name || '',
         name: it.name || '',
         enName: it.enName || '',
         coverVerticalUrl: it.coverVerticalUrl || '',
@@ -156,6 +159,8 @@ function mapDetail(data, category) {
 
     return {
         id: data.id,
+        // Prefer the English title over the native (often Korean) `name`.
+        title: data.enName || data.name || '',
         name: data.name || '',
         enName: data.enName || '',
         category,
