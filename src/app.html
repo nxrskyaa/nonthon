@@ -2551,25 +2551,17 @@ async function renderDetail({type, id, season, episode}) {
             </div>
         `;
 
-        // TV: season/episode selector — filtered to seasons that actually have
-        // a playable source, so a wrong TMDB season count (e.g. a 1-season show
-        // listed as 2) doesn't offer a dead season.
-        let activeSeason = parseInt(season) || 1;
+        // TV: season/episode selector (all TMDB seasons — sources that lack a
+        // season fall back to the iframe sources in the player, so seasons are
+        // never hidden here).
         if (type === 'tv' && data.seasons && data.seasons.length > 0) {
-            let validSeasons = data.seasons.filter(s => s.season_number > 0 || data.seasons.length === 1);
-            validSeasons = await filterAvailableSeasons(id, validSeasons);
-            if (validSeasons.length === 0) {
-                validSeasons = data.seasons.filter(s => s.season_number > 0 || data.seasons.length === 1);
-            }
-            if (!validSeasons.some(s => s.season_number === activeSeason)) {
-                activeSeason = validSeasons[0] ? validSeasons[0].season_number : 1;
-            }
+            const validSeasons = data.seasons.filter(s => s.season_number > 0 || data.seasons.length === 1);
             html += `
                 <div class="section" id="tv-seasons">
                     <div class="section-title">Episodes</div>
                     <div class="season-selector">
                         <select id="seasonSelect" onchange="loadSeason(${id}, this.value)">
-                            ${validSeasons.map(s => `<option value="${s.season_number}" ${activeSeason===s.season_number?'selected':''}>Musim ${s.season_number} (${s.episode_count} eps)</option>`).join('')}
+                            ${validSeasons.map(s => `<option value="${s.season_number}" ${parseInt(season||1)===s.season_number?'selected':''}>Musim ${s.season_number} (${s.episode_count} eps)</option>`).join('')}
                         </select>
                     </div>
                     <div class="episode-grid" id="episodeGrid"></div>
@@ -2609,29 +2601,13 @@ async function renderDetail({type, id, season, episode}) {
             renderCards('grid-recs', recItems);
         }
 
-        // Load episodes for TV (use the season that survived filtering)
-        if (type === 'tv' && activeSeason) {
-            loadSeason(id, activeSeason);
+        // Load episodes for TV
+        if (type === 'tv' && season) {
+            loadSeason(id, season);
         }
     } catch(e) {
         app.innerHTML = `<div class="loading">❌ ${e.message}</div>`;
     }
-}
-
-/** Probe which seasons actually have a playable source, so the season
- * selector only shows seasons that exist (TMDB sometimes lists extra seasons
- * for a show — e.g. a 1-season show listed as 2). */
-async function filterAvailableSeasons(id, seasons) {
-    const results = await Promise.all(seasons.map(async s => {
-        try {
-            const r = await fetch(`/api/stream?probe=1&type=tv&id=${id}&s=${s.season_number}&e=1`);
-            const j = await r.json();
-            return { s, ok: !!(j.success && j.available) };
-        } catch { return { s, ok: true }; }
-    }));
-    const kept = results.filter(r => r.ok).map(r => r.s);
-    // If the probe filtered everything (e.g. source temporarily down), keep all.
-    return kept.length ? kept : seasons;
 }
 
 async function loadSeason(id, seasonNum) {

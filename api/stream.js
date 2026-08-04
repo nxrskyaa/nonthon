@@ -117,31 +117,6 @@ export default async function handler(req, res) {
         : `/embed/tmdb/tv?id=${id}&s=${season}&e=${episode}`;
     const cacheKey = `${type}|${id}|${season}|${episode}`;
 
-    // Lightweight probe: does this (season,episode) have any playable source?
-    // Used to filter the season selector to what actually exists, so a wrong
-    // TMDB season count (e.g. a 1-season show listed as 2) doesn't show a
-    // dead season. Does NOT resolve every server's m3u8 — just parses the
-    // embed for advertised servers, so it stays fast.
-    if (req.query.probe === '1') {
-        try {
-            const pk = 'probe|' + cacheKey;
-            let avail = cacheGet(pk);
-            if (avail == null) {
-                let embedHtml = null;
-                for (const host of HOSTS) {
-                    try { embedHtml = (await getText(host + embedPath, host + '/')).text; if (embedHtml) break; }
-                    catch (e) { /* next host */ }
-                }
-                avail = !!embedHtml && parseServers(embedHtml).length > 0;
-                cacheSet(pk, avail, 600000);
-            }
-            res.setHeader('Cache-Control', 'private, max-age=300');
-            return res.status(200).json({ success: true, available: !!avail, type, id, season, episode });
-        } catch (err) {
-            return res.status(200).json({ success: true, available: true, type, id, season, episode });
-        }
-    }
-
     try {
         let sources = cacheGet(cacheKey);
 
