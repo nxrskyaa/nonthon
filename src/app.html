@@ -2683,6 +2683,10 @@ async function renderPlayer({type, id, season, episode}) {
                 <div id="player-controls" style="display:none;margin-top:16px;gap:8px;flex-wrap:wrap;align-items:center;">
                     <select id="subSelect" onchange="setSubtitle(this.value)" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-size:0.85rem;cursor:pointer;display:none;max-width:220px;"></select>
                     <select id="qualitySelect" onchange="setQuality(this.value)" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-size:0.85rem;cursor:pointer;display:none;"></select>
+                    <div id="serverBar" class="server-bar" style="display:none;width:100%;">
+                        <span class="server-label">🖥 Server:</span>
+                        <span id="serverBtns"></span>
+                    </div>
                     ${type === 'tv' ? `
                         <button class="hero-btn" style="background:var(--surface);font-size:0.85rem;padding:10px 20px;" onclick="prevEpisode(${id}, ${season}, ${episode})">⏮ Episode Sebelumnya</button>
                         <button class="hero-btn" style="background:var(--surface);font-size:0.85rem;padding:10px 20px;" onclick="nextEpisode(${id}, ${season}, ${episode})">Episode Selanjutnya ⏭</button>
@@ -2698,6 +2702,11 @@ async function renderPlayer({type, id, season, episode}) {
 let _hls = null;
 let _streamData = null;
 let _subtitleList = [];
+let _sources = [];
+let _sourceIdx = 0;
+let _currentSource = null;
+let _retryCount = 0;
+let _openSubCache = {};
 
 async function loadStream(type, id, season, episode) {
     const loading = document.getElementById('player-loading');
@@ -2711,80 +2720,24 @@ async function loadStream(type, id, season, episode) {
             params.set('s', season || 1);
             params.set('e', episode || 1);
         }
-        
+
         const resp = await fetch(`/api/stream?${params}`);
         _streamData = await resp.json();
 
         if (!_streamData.success) throw new Error(_streamData.error || 'Unknown error');
 
+        // Back-compat: if the endpoint returned a single stream, wrap it.
+        _sources = (_streamData.sources && _streamData.sources.length)
+            ? _streamData.sources
+            : [{ name: 'Server', streamUrl: _streamData.streamUrl, subtitles: _streamData.subtitles || [] }];
+        _sourceIdx = 0;
+        _currentSource = _sources[0];
+
         loading.style.display = 'none';
         area.style.display = 'block';
         controls.style.display = 'flex';
 
-        const video = document.getElementById('video');
-        const streamUrl = _streamData.streamUrl;
-
-        // Setup HLS.js with ad-stripping + fast start
-        if (window.Hls && Hls.isSupported()) {
-            if (_hls) { _hls.destroy(); }
-            _hls = new Hls({
-                enableWorker: true,
-                lowLatencyMode: false,
-                backBufferLength: 30,
-                maxBufferLength: 30,
-                maxMaxBufferLength: 60,
-                startLevel: -1,
-                maxBufferSize: 60 * 1000 * 1000,
-                maxBufferHole: 0.5,
-                abrEwmaDefaultEstimate: 1000000,
-                startFragPrefetch: true,
-            });
-            _hls.loadSource(streamUrl);
-            _hls.attachMedia(video);
-            
-            // Ad stripping: skip fragments from known ad CDNs
-            const adDomains = ['tiktokcdn', 'ad-site-i18n', 'doubleclick', 'googleads', 'googlesyndication', 'popads', 'ad-site-sign'];
-            _hls.on(Hls.Events.FRAG_LOADING, (event, data) => {
-                const url = data.frag.url || '';
-                if (adDomains.some(d => url.includes(d))) {
-                    // Skip this ad fragment by advancing to next
-                    console.log('Ad skipped:', url.substring(0, 60));
-                    data.frag.loader = { destroy: () => {}, load: () => {} };
-                }
-            });
-            
-            _hls.on(Hls.Events.MANIFEST_PARSED, (e, data) => {
-                // Populate quality selector
-                const qSel = document.getElementById('qualitySelect');
-                if (qSel && data.levels.length > 1) {
-                    qSel.innerHTML = '<option value="-1">Auto</option>' +
-                        data.levels.map((l, i) => 
-                            `<option value="${i}">${l.height || '?'}p (${Math.round(l.bitrate/1000)}kbps)</option>`
-                        ).join('');
-                    qSel.style.display = 'inline-block';
-                }
-                video.play().catch(()=>{});
-            });
-            _hls.on(Hls.Events.ERROR, (event, data) => {
-                if (data.fatal) {
-                    console.error('HLS fatal:', data);
-                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                        setTimeout(() => _hls.startLoad(), 1000);
-                    } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                        _hls.recoverMediaError();
-                    }
-                }
-            });
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = streamUrl;
-            video.play().catch(()=>{});
-        } else {
-            throw new Error('HLS not supported');
-        }
-
-        // Setup subtitle selector — multi-language from OpenSubtitles
-        loadSubtitles(type, id, season, episode);
-
+        _playSource(0);
     } catch (err) {
         console.error('Stream error:', err);
         loading.style.display = 'none';
@@ -2794,30 +2747,150 @@ async function loadStream(type, id, season, episode) {
     }
 }
 
+function renderServerBar() {
+    const bar = document.getElementById('serverBar');
+    const btns = document.getElementById('serverBtns');
+    if (!bar || !btns) return;
+    if (_sources.length <= 1) { bar.style.display = 'none'; return; }
+    bar.style.display = 'flex';
+    btns.innerHTML = _sources.map((s, i) =>
+        `<button class="server-btn ${i === _sourceIdx ? 'active' : ''}" onclick="_playSource(${i})">` +
+        `${escapeHtml(s.name || ('Server ' + (i + 1)))}</button>`
+    ).join('');
+}
+
+function showPlayerError() {
+    const loading = document.getElementById('player-loading');
+    const area = document.getElementById('player-area');
+    const errDiv = document.getElementById('player-error');
+    if (loading) loading.style.display = 'none';
+    if (area) area.style.display = 'none';
+    if (errDiv) {
+        errDiv.style.display = 'block';
+        const p = errDiv.querySelector('p');
+        if (p) p.textContent = '⚠️ Semua server gagal dimuat untuk judul ini. Coba server/proxy lain.';
+    }
+}
+
+/** Switch to a specific server and (re)attach HLS. */
+function _playSource(idx) {
+    const src = _sources[idx];
+    if (!src) return;
+    _sourceIdx = idx;
+    _currentSource = src;
+    _retryCount = 0;
+    renderServerBar();
+
+    const video = document.getElementById('video');
+    const streamUrl = src.streamUrl;
+    const qSel = document.getElementById('qualitySelect');
+    if (qSel) { qSel.innerHTML = ''; qSel.style.display = 'none'; }
+
+    if (_hls) { _hls.destroy(); _hls = null; }
+
+    // Setup HLS.js with ad-stripping + fast start
+    if (window.Hls && Hls.isSupported()) {
+        _hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            backBufferLength: 30,
+            maxBufferLength: 30,
+            maxMaxBufferLength: 60,
+            startLevel: -1,
+            maxBufferSize: 60 * 1000 * 1000,
+            maxBufferHole: 0.5,
+            abrEwmaDefaultEstimate: 1000000,
+            startFragPrefetch: true,
+        });
+        _hls.loadSource(streamUrl);
+        _hls.attachMedia(video);
+
+        // Ad stripping: skip fragments from known ad CDNs
+        const adDomains = ['tiktokcdn', 'ad-site-i18n', 'doubleclick', 'googleads', 'googlesyndication', 'popads', 'ad-site-sign'];
+        _hls.on(Hls.Events.FRAG_LOADING, (event, data) => {
+            const url = data.frag.url || '';
+            if (adDomains.some(d => url.includes(d))) {
+                console.log('Ad skipped:', url.substring(0, 60));
+                data.frag.loader = { destroy: () => {}, load: () => {} };
+            }
+        });
+
+        _hls.on(Hls.Events.MANIFEST_PARSED, (e, data) => {
+            _retryCount = 0;
+            const qSel2 = document.getElementById('qualitySelect');
+            if (qSel2 && data.levels.length > 1) {
+                qSel2.innerHTML = '<option value="-1">Auto</option>' +
+                    data.levels.map((l, i) =>
+                        `<option value="${i}">${l.height || '?'}p (${Math.round(l.bitrate/1000)}kbps)</option>`
+                    ).join('');
+                qSel2.style.display = 'inline-block';
+            }
+            video.play().catch(()=>{});
+        });
+
+        _hls.on(Hls.Events.ERROR, (event, data) => {
+            if (!data.fatal) return;
+            console.error('HLS fatal:', data);
+            _retryCount++;
+            // Auto-failover: hop to the next server before giving up.
+            if (_sourceIdx < _sources.length - 1 && _retryCount > 2) {
+                _retryCount = 0;
+                _playSource(_sourceIdx + 1);
+                return;
+            }
+            if (_retryCount > 4) { showPlayerError(); return; }
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                setTimeout(() => _hls && _hls.startLoad(), 1000);
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                _hls.recoverMediaError();
+            }
+        });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = streamUrl;
+        video.play().catch(()=>{});
+    } else {
+        showPlayerError();
+    }
+
+    // Refresh subtitle selector for the active server's embedded tracks.
+    const { type: t, id: iid, season: ss, episode: ee } = currentState;
+    loadSubtitles(t, iid, ss, ee);
+}
+
 // ===== Subtitles (multi-language) =====
 async function loadSubtitles(type, id, season, episode) {
     const subSel = document.getElementById('subSelect');
     if (!subSel) return;
 
-    // Embedded tracks the stream provider itself shipped
-    const embedded = (_streamData?.subtitles || []).map(s => ({ ...s, src: 'stream' }));
+    // Embedded tracks the active server shipped (switches with the server)
+    const embedded = ((_currentSource && (_currentSource.subtitles || []).length)
+        ? _currentSource.subtitles
+        : (_streamData?.subtitles || [])).map(s => ({ ...s, src: 'stream' }));
 
     subSel.innerHTML = '<option value="">Memuat subtitle...</option>';
     subSel.style.display = 'inline-block';
     subSel.disabled = true;
 
-    let online = [];
-    try {
-        const params = new URLSearchParams({ type, id });
-        if (type === 'tv') {
-            params.set('s', season || 1);
-            params.set('e', episode || 1);
+    // OpenSubtitles don't depend on the chosen server — cache per title so
+    // switching servers doesn't re-fetch them every time.
+    const osKey = `${type}|${id}|${season || 1}|${episode || 1}`;
+    let online = _openSubCache[osKey] || [];
+    if (!_openSubCache[osKey]) {
+        try {
+            const params = new URLSearchParams({ type, id });
+            if (type === 'tv') {
+                params.set('s', season || 1);
+                params.set('e', episode || 1);
+            }
+            const resp = await fetch(`/api/subs?${params}`);
+            const data = await resp.json();
+            if (data.success) {
+                online = (data.subtitles || []).map(s => ({ ...s, src: 'os' }));
+                _openSubCache[osKey] = online;
+            }
+        } catch (e) {
+            console.warn('Subtitle fetch failed:', e.message);
         }
-        const resp = await fetch(`/api/subs?${params}`);
-        const data = await resp.json();
-        if (data.success) online = (data.subtitles || []).map(s => ({ ...s, src: 'os' }));
-    } catch (e) {
-        console.warn('Subtitle fetch failed:', e.message);
     }
 
     const all = [...embedded, ...online];
