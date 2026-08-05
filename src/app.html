@@ -1313,7 +1313,7 @@ let DRACIN_SOURCES = [
 let _dracinSourcesLoaded = false;
 // Sources served by /api/dracin-id (Indonesian-localized) rather than the
 // MacCMS /api/dracin endpoint. Their episodes resolve their media URL lazily.
-const DRACIN_ID_SOURCES = new Set(['reelshort']);
+const DRACIN_ID_SOURCES = new Set(['reelshort', 'dramabox', 'shortmax']);
 async function loadDracinSources() {
     if (_dracinSourcesLoaded) return;
     let macc = [];

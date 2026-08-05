@@ -33,8 +33,20 @@ export const ID_SOURCES = {
         note: 'Sub/Dub Indonesia · verified playable',
         shape: 'episodes',
     },
+    dramabox: {
+        label: '🔊 Sulih Suara',
+        short: 'SS',
+        note: 'Dub Indonesia asli · episode per judul',
+        shape: 'episodes',
+    },
+    shortmax: {
+        label: '🔊 Drama VIP',
+        short: 'VP',
+        note: 'Sub Indonesia · m3u8',
+        shape: 'episodes',
+    },
 };
-const ID_SOURCE_ORDER = ['reelshort'];
+const ID_SOURCE_ORDER = ['reelshort', 'dramabox', 'shortmax'];
 
 // ---- tiny per-instance cache (survives warm invocations only) --------------
 const _cache = new Map();
@@ -171,6 +183,137 @@ async function rsEpisode(id, ep) {
     return { url: chosen.url, locked: !!j.isLocked, codec: chosen.encode || '' };
 }
 
+// ---- DramaBox (dub indo "Sulih Suara") adapters ----------------------------
+function dbBook(b) {
+    return {
+        src: 'dramabox',
+        id: String(b.bookId || b.book_id || ''),
+        title: b.bookName || b.book_name || b.title || '',
+        titleOrig: '',
+        pic: b.coverWap || b.cover || b.coverVerticalUrl || '',
+        remarks: '',
+        year: '',
+        area: 'Indonesia',
+        genre: Array.isArray(b.tags) ? b.tags.join(', ') : String(b.tags || ''),
+        overview: String(b.introduction || ''),
+        updated: '',
+        episodes: Number(b.chapterCount || b.chapter_count || b.episodeCount || 0) || 0,
+    };
+}
+
+function dbItems(j) {
+    const arr = j?.data?.list || j?.data || j?.list || (Array.isArray(j) ? j : []);
+    const list = Array.isArray(arr) ? arr : (arr.list || []);
+    return list.map(dbBook).filter(m => m.id && m.title);
+}
+
+async function dbList() {
+    const j = await sanse('/dramabox/dubindo?classify=terbaru&page=1', { ttlMs: 600000 });
+    return dbItems(j);
+}
+
+async function dbSearch(q) {
+    const j = await sanse('/dramabox/search?query=' + encodeURIComponent(q), { ttlMs: 120000 });
+    return dbItems(j);
+}
+
+async function dbEpisodeArr(id) {
+    const j = await sanse('/dramabox/allepisode?bookId=' + encodeURIComponent(id), { ttlMs: 3600000 });
+    const eps = j?.data?.list || j?.data || j?.list || (Array.isArray(j) ? j : []);
+    const arr = Array.isArray(eps) ? eps : (eps.list || []);
+    return arr;
+}
+
+async function dbDetail(id) {
+    const j = await sanse('/dramabox/detail?bookId=' + encodeURIComponent(id), { ttlMs: 600000 });
+    if (!j || j.success === false) return null;
+    const d = j.data || j;
+    const book = dbBook(d.book || d.bookInfo || d);
+    if (!book.id || !book.title) return null;
+    let epCount = book.episodes;
+    try { const arr = await dbEpisodeArr(id); if (arr.length) epCount = arr.length; } catch { /* keep count */ }
+    const epList = Array.from({ length: Math.max(1, epCount) }, (_, i) => ({ label: 'Eps ' + (i + 1), ep: i + 1 }));
+    return { ...book, episodes: epList.length, epList };
+}
+
+async function dbEpisode(id, ep) {
+    const arr = await dbEpisodeArr(id);
+    const target = arr[ep - 1] || arr[0];
+    if (!target) throw new Error('no_episode');
+    let cdn = target.cdnList || target.cdn || target.urls || [];
+    if (typeof cdn === 'string') {
+        try { cdn = JSON.parse(cdn); } catch { cdn = [cdn]; }
+    }
+    const urls = (Array.isArray(cdn) ? cdn : [cdn])
+        .map(u => (typeof u === 'string' ? u : (u.url || u.file || '')))
+        .filter(Boolean);
+    for (const u of urls) {
+        const dec = await sanse('/dramabox/decrypt?url=' + encodeURIComponent(u), { ttlMs: 600000 });
+        const su = dec?.data?.streamUrl || dec?.streamUrl || dec?.data?.url || dec?.url || '';
+        if (su) return { url: su, locked: false };
+    }
+    throw new Error('no_playable_variant');
+}
+
+// ---- ShortMax adapters ------------------------------------------------------
+function smBook(b) {
+    return {
+        src: 'shortmax',
+        id: String(b.shortPlayId || b.id || b.bookId || ''),
+        title: b.title || b.name || b.bookName || '',
+        titleOrig: '',
+        pic: b.cover || b.poster || b.coverVerticalUrl || '',
+        remarks: '',
+        year: '',
+        area: 'Indonesia',
+        genre: '',
+        overview: String(b.introduction || b.description || ''),
+        updated: '',
+        episodes: Number(b.chapterCount || b.episodeCount || b.totalEpisodes || 0) || 0,
+    };
+}
+
+function smItems(j) {
+    const arr = j?.data?.list || j?.data || j?.list || (Array.isArray(j) ? j : []);
+    const list = Array.isArray(arr) ? arr : (arr.list || []);
+    return list.map(smBook).filter(m => m.id && m.title);
+}
+
+async function smList() {
+    const j = await sanse('/shortmax/latest?page=1', { ttlMs: 600000 });
+    return smItems(j);
+}
+
+async function smSearch(q) {
+    const j = await sanse('/shortmax/search?query=' + encodeURIComponent(q), { ttlMs: 120000 });
+    return smItems(j);
+}
+
+async function smDetail(id) {
+    const j = await sanse('/shortmax/detail?shortPlayId=' + encodeURIComponent(id), { ttlMs: 600000 });
+    if (!j || j.success === false) return null;
+    const d = j.data || j;
+    const book = smBook(d);
+    if (!book.id || !book.title) return null;
+    const n = book.episodes || 1;
+    const epList = Array.from({ length: Math.max(1, n) }, (_, i) => ({ label: 'Eps ' + (i + 1), ep: i + 1 }));
+    return { ...book, episodes: epList.length, epList };
+}
+
+async function smEpisode(id, ep) {
+    const j = await sanse(`/shortmax/episode?shortPlayId=${encodeURIComponent(id)}&episodeNumber=${ep}`, { ttlMs: 3600000 });
+    const data = j?.data || j;
+    const urls = [];
+    const collect = (v) => {
+        if (typeof v === 'string' && /\.m3u8(\?|$)/i.test(v)) urls.push(v);
+        else if (Array.isArray(v)) v.forEach(collect);
+        else if (v && typeof v === 'object') Object.values(v).forEach(collect);
+    };
+    collect(data);
+    if (!urls.length) throw new Error('no_playable_variant');
+    return { url: urls[0], locked: !!data.isLocked };
+}
+
 // ---- handler ---------------------------------------------------------------
 function forGrid(items) {
     return items.map(({ epList, ...rest }) => rest);
@@ -192,9 +335,16 @@ export default async function handler(req, res) {
     const key = String(req.query.source || 'reelshort');
     if (!ID_SOURCES[key]) return res.status(400).json({ error: 'unknown_source' });
 
+    const ADAPTERS = {
+        reelshort: { list: rsList, search: rsSearch, detail: rsDetail, episode: rsEpisode },
+        dramabox: { list: dbList, search: dbSearch, detail: dbDetail, episode: dbEpisode },
+        shortmax: { list: smList, search: smSearch, detail: smDetail, episode: smEpisode },
+    };
+    const A = ADAPTERS[key];
+
     try {
         if (action === 'list') {
-            const items = await rsList();
+            const items = await A.list();
             res.setHeader('Cache-Control', 'private, max-age=600');
             return res.status(200).json({
                 success: true, source: key, shape: 'episodes',
@@ -205,7 +355,7 @@ export default async function handler(req, res) {
         if (action === 'search') {
             const q = String(req.query.q || '').slice(0, 60).trim();
             if (!q) return res.status(400).json({ error: 'missing_query' });
-            const items = await rsSearch(q);
+            const items = await A.search(q);
             res.setHeader('Cache-Control', 'private, max-age=120');
             return res.status(200).json({
                 success: true, source: key, shape: 'episodes',
@@ -216,7 +366,7 @@ export default async function handler(req, res) {
         if (action === 'detail') {
             const id = String(req.query.id || '').trim();
             if (!id) return res.status(400).json({ error: 'missing_id' });
-            const item = await rsDetail(id);
+            const item = await A.detail(id);
             if (!item) return res.status(404).json({ error: 'not_found' });
             res.setHeader('Cache-Control', 'private, max-age=600');
             return res.status(200).json({ success: true, shape: 'episodes', item });
@@ -226,7 +376,7 @@ export default async function handler(req, res) {
             const id = String(req.query.id || '').trim();
             const ep = Math.max(1, parseInt(req.query.ep, 10) || 1);
             if (!id) return res.status(400).json({ error: 'missing_id' });
-            const { url, locked } = await rsEpisode(id, ep);
+            const { url, locked } = await A.episode(id, ep);
             // Do not cache the resolved URL at the edge — some carry a signed
             // auth_key with a limited lifetime; the per-instance memory cache is
             // enough and stays private.
