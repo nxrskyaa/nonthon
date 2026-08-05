@@ -664,7 +664,7 @@ async function mlEpisode(id, ep) {
     const j = await sanse('/melolo/stream?videoId=' + encodeURIComponent(ep), { ttlMs: 3600000 });
     const d = j?.data || j;
     const main = mlDecodeUrl(d?.main_url || '');
-    if (main) return { url: main, locked: false };
+    if (/^https?:\/\//.test(main)) return { url: main, locked: false };
     let model = d?.video_model;
     if (typeof model === 'string') { try { model = JSON.parse(model); } catch { model = null; } }
     const vlist = model?.video_list;
@@ -673,10 +673,21 @@ async function mlEpisode(id, ep) {
             .sort((a, b) => Number(b.replace(/\D/g, '')) - Number(a.replace(/\D/g, '')));
         for (const k of keys) {
             const u = mlDecodeUrl(vlist[k]?.main_url_decoded || vlist[k]?.main_url || '');
-            if (u) return { url: u, locked: false };
+            if (/^https?:\/\//.test(u)) return { url: u, locked: false };
         }
     }
-    throw new Error('no_playable_variant');
+    // Deep-walk fallback: some builds nest the playable URL under a different
+    // key — grab any http(s) URL, preferring HLS/MP4.
+    const found = [];
+    const walk = (v) => {
+        if (typeof v === 'string' && /^https?:\/\//.test(v)) found.push(v);
+        else if (Array.isArray(v)) v.forEach(walk);
+        else if (v && typeof v === 'object') Object.values(v).forEach(walk);
+    };
+    walk(j);
+    const url = found.find(u => /\.(m3u8|mp4)(\?|$)/i.test(u)) || found[0] || '';
+    if (!url) throw new Error('no_playable_variant');
+    return { url, locked: false };
 }
 
 // ---- handler ---------------------------------------------------------------
