@@ -284,19 +284,29 @@ async function dbEpisode(id, ep) {
     const arr = await dbEpisodeArr(id);
     const target = arr[ep - 1] || arr[0];
     if (!target) throw new Error('no_episode');
-    let cdn = target.cdnList || target.cdn || target.urls || [];
-    if (typeof cdn === 'string') {
-        try { cdn = JSON.parse(cdn); } catch { cdn = [cdn]; }
+    // Episodes carry cdnList[].videoPathList[].videoPath (an encrypted path the
+    // upstream decrypts on demand) — collect every variant, prefer highest res.
+    const paths = [];
+    for (const cdn of (Array.isArray(target.cdnList) ? target.cdnList : [])) {
+        for (const vp of (cdn.videoPathList || [])) {
+            if (vp.videoPath) paths.push({ quality: Number(vp.quality) || 0, videoPath: vp.videoPath });
+        }
     }
-    const urls = (Array.isArray(cdn) ? cdn : [cdn])
-        .map(u => (typeof u === 'string' ? u : (u.url || u.file || '')))
-        .filter(Boolean);
-    for (const u of urls) {
-        const dec = await sanse('/dramabox/decrypt?url=' + encodeURIComponent(u), { ttlMs: 600000 });
+    const pick = paths.sort((a, b) => b.quality - a.quality)[0];
+    if (!pick) throw new Error('no_playable_variant');
+    // Some builds expose a JSON decrypt endpoint returning a direct URL.
+    try {
+        const dec = await sanse('/dramabox/decrypt?url=' + encodeURIComponent(pick.videoPath), { ttlMs: 600000 });
         const su = dec?.data?.streamUrl || dec?.streamUrl || dec?.data?.url || dec?.url || '';
-        if (su) return { url: su, locked: false };
-    }
-    throw new Error('no_playable_variant');
+        if (/^https?:\/\//.test(su)) return { url: su, locked: false };
+    } catch { /* fall through to the streaming proxy */ }
+    // Otherwise the upstream decrypt-stream endpoint streams the decrypted
+    // video bytes directly (Content-Type video/mp4) — a <video> element plays
+    // it cross-origin without CORS.
+    return {
+        url: SANSEKAI + '/dramabox/decrypt-stream?url=' + encodeURIComponent(pick.videoPath),
+        locked: false,
+    };
 }
 
 // ---- ShortMax adapters ------------------------------------------------------
