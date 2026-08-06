@@ -69,8 +69,14 @@ export const ID_SOURCES = {
         note: 'Sub Indonesia · m3u8',
         shape: 'episodes',
     },
+    flickreels: {
+        label: '🎞️ Drama Reels',
+        short: 'DR',
+        note: 'Sub Indonesia · m3u8',
+        shape: 'episodes',
+    },
 };
-const ID_SOURCE_ORDER = ['reelshort', 'dramabox', 'shortmax', 'pinedrama', 'netshort', 'freereels', 'melolo'];
+const ID_SOURCE_ORDER = ['reelshort', 'dramabox', 'shortmax', 'pinedrama', 'netshort', 'freereels', 'melolo', 'flickreels'];
 
 // ---- tiny per-instance cache (survives warm invocations only) --------------
 const _cache = new Map();
@@ -700,6 +706,78 @@ async function mlEpisode(id, ep) {
     return { url, locked: false };
 }
 
+// ---- FlickReels adapters ------------------------------------------------------
+// Same "reels" platform family as FreeReels — the Sansekai docs list the same
+// endpoint shape (foryou / latest / search / detailAndAllEpisode). The upstream
+// responses are structurally close to FreeReels, so the mapping mirrors it.
+function fkBook(b) {
+    return {
+        src: 'flickreels',
+        id: String(b.key || b.id || ''),
+        title: b.title || b.name || '',
+        titleOrig: '',
+        pic: b.cover || b.cover_url || '',
+        remarks: '',
+        year: '',
+        area: 'Indonesia',
+        genre: Array.isArray(b.content_tags) ? b.content_tags.join(', ') : String(b.categories || ''),
+        overview: String(b.desc || b.description || ''),
+        updated: '',
+        episodes: Number(b.episode_count || b.total_episodes || 0) || 0,
+    };
+}
+
+async function fkList() {
+    const j = await sanse('/flickreels/foryou?page=1', { ttlMs: 600000 });
+    const arr = j?.data?.items || j?.data?.list || j?.items || j?.list || (Array.isArray(j) ? j : []);
+    return arr.map(fkBook).filter(m => m.id && m.title);
+}
+
+async function fkSearch(q) {
+    const j = await sanse('/flickreels/search?query=' + encodeURIComponent(q), { ttlMs: 120000 });
+    const arr = j?.data?.items || j?.data?.list || j?.items || j?.list || (Array.isArray(j) ? j : []);
+    return arr.map(fkBook).filter(m => m.id && m.title);
+}
+
+async function fkInfo(id) {
+    const j = await sanse('/flickreels/detailAndAllEpisode?id=' + encodeURIComponent(id), { ttlMs: 600000 });
+    return j?.data?.info || j?.info || j?.data || j || null;
+}
+
+async function fkDetail(id) {
+    const info = await fkInfo(id);
+    if (!info || (!info.id && !info.key)) return null;
+    const eps = Array.isArray(info.episode_list) ? info.episode_list : [];
+    const epList = eps.map((e, i) => ({ label: e.name || 'Eps ' + (i + 1), ep: e.id ?? (i + 1) }));
+    return {
+        src: 'flickreels',
+        id: String(info.id || info.key),
+        title: info.title || info.name || '',
+        titleOrig: '',
+        pic: info.cover || info.cover_url || '',
+        remarks: '',
+        year: '',
+        area: 'Indonesia',
+        genre: '',
+        overview: String(info.desc || info.description || ''),
+        episodes: epList.length,
+        epList,
+    };
+}
+
+async function fkEpisode(id, ep) {
+    const info = await fkInfo(id);
+    const eps = Array.isArray(info?.episode_list) ? info.episode_list : [];
+    const target = eps.find(e => String(e.id) === String(ep)) || eps[0];
+    if (!target) throw new Error('no_episode');
+    // Same priority as FreeReels: H.264 HLS first (plays everywhere), then a
+    // direct MP4, then HEVC as the last resort.
+    const url = target.external_audio_h264_m3u8 || target.video_url || target.m3u8_url
+        || target.external_audio_h265_m3u8 || '';
+    if (!url) throw new Error('no_playable_variant');
+    return { url, locked: false };
+}
+
 // ---- handler ---------------------------------------------------------------
 function forGrid(items) {
     return items.map(({ epList, ...rest }) => rest);
@@ -729,6 +807,7 @@ export default async function handler(req, res) {
         netshort: { list: nsList, search: nsSearch, detail: nsDetail, episode: nsEpisode },
         freereels: { list: frList, search: frSearch, detail: frDetail, episode: frEpisode },
         melolo: { list: mlList, search: mlSearch, detail: mlDetail, episode: mlEpisode },
+        flickreels: { list: fkList, search: fkSearch, detail: fkDetail, episode: fkEpisode },
     };
     const A = ADAPTERS[key];
 
