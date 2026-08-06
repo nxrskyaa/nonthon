@@ -2550,9 +2550,8 @@ async function renderDetail({type, id, season, episode}) {
             </div>
         `;
 
-        // TV: season/episode selector (all TMDB seasons — sources that lack a
-        // season fall back to the iframe sources in the player, so seasons are
-        // never hidden here).
+        // TV: season/episode selector (all TMDB seasons are shown; sources that
+        // lack a season simply have no playable server for those episodes).
         if (type === 'tv' && data.seasons && data.seasons.length > 0) {
             const validSeasons = data.seasons.filter(s => s.season_number > 0 || data.seasons.length === 1);
             html += `
@@ -2675,9 +2674,6 @@ async function renderPlayer({type, id, season, episode}) {
                         <video id="video" controls autoplay playsinline 
                             style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;background:#000;">
                         </video>
-                        <iframe id="playerIframe" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen
-                            style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;display:none;background:#000;"
-                            referrerpolicy="no-referrer"></iframe>
                     </div>
                 </div>
                 <div id="player-error" style="display:none;padding:20px;text-align:center;">
@@ -2712,15 +2708,11 @@ let _currentSource = null;
 let _retryCount = 0;
 let _openSubCache = {};
 
-// Extra embed source (client-side iframe) offered alongside the clean native
-// servers. Loads in the user's own browser (residential IP passes its
-// protection), so no server-side access is needed. Label is rebranded so the
-// upstream host isn't advertised in the UI.
-const IFRAME_SOURCES = [
-    { key: 'vip', name: 'NXR-VIP SERVER',
-      movie: id => `https://nxsha.space/embed/movie/${id}?lang=en&autoplay=true&sub=en`,
-      tv: (id, s, e) => `https://nxsha.space/embed/tv/${id}/${s}/${e}?lang=en&autoplay=true&sub=en` },
-];
+// No iframe embed fallbacks. Every third-party embed host we tested
+// (2Embed, Flicky, Frembed, and now Nxsha) injects ad popunders/overlays
+// (including gambling ads) into the user's browser, which violates the
+// "clean sources only" rule. The player therefore only ever uses native
+// HLS sources resolved server-side (see /api/stream), which are ad-free.
 
 async function loadStream(type, id, season, episode) {
     const loading = document.getElementById('player-loading');
@@ -2744,22 +2736,15 @@ async function loadStream(type, id, season, episode) {
                 ? _streamData.sources
                 : [{ name: 'Server', streamUrl: _streamData.streamUrl, subtitles: _streamData.subtitles || [] }];
         } else {
-            // No native source — iframe fallbacks may still save the episode.
+            // No native source — no iframe fallback is appended (they all serve
+            // ads), so _sources stays empty and the player reports cleanly.
             _sources = [];
         }
 
-        // Append client-side iframe sources as extra selectable servers.
-        const iframeSrcs = IFRAME_SOURCES
-            .filter(s => type === 'movie' ? !!s.movie : !!s.tv)
-            .map(s => ({
-                name: s.name + ' ⧉',
-                iframe: true,
-                iframeUrl: type === 'movie' ? s.movie(id) : s.tv(id, season || 1, episode || 1),
-                streamUrl: '',
-                subtitles: [],
-            }));
-        _sources = _sources.concat(iframeSrcs);
-
+        // No iframe fallbacks are appended: every embed host tested serves ads,
+        // so only the clean native HLS sources (resolved server-side) are used.
+        // If there are no native sources, _sources stays empty and the player
+        // shows a clean "no source" message instead of an ad-laden iframe.
         if (_sources.length === 0) throw new Error(_streamData.error || 'Unknown error');
 
         _sourceIdx = 0;
@@ -2807,7 +2792,7 @@ function showPlayerError() {
     }
 }
 
-/** Switch to a specific server and (re)attach HLS (or iframe for embeds). */
+/** Switch to a specific server and (re)attach HLS. */
 function _playSource(idx) {
     const src = _sources[idx];
     if (!src) return;
@@ -2817,22 +2802,10 @@ function _playSource(idx) {
     renderServerBar();
 
     const video = document.getElementById('video');
-    const iframe = document.getElementById('playerIframe');
     const qSel = document.getElementById('qualitySelect');
     if (qSel) { qSel.innerHTML = ''; qSel.style.display = 'none'; }
 
-    // ── Iframe source (embed fallback) ──
-    if (src.iframe && src.iframeUrl) {
-        if (_hls) { _hls.destroy(); _hls = null; }
-        if (video) video.style.display = 'none';
-        if (iframe) { iframe.src = src.iframeUrl; iframe.style.display = 'block'; }
-        const subSel = document.getElementById('subSelect');
-        if (subSel) { subSel.innerHTML = '<option value="">CC Off</option>'; subSel.style.display = 'none'; }
-        return;
-    }
-
-    // ── Native HLS mode ──
-    if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
+    // ── Native HLS mode (only mode — no iframe/embed fallbacks) ──
     if (video) video.style.display = '';
     const streamUrl = src.streamUrl;
 
