@@ -63,20 +63,8 @@ export const ID_SOURCES = {
         note: 'Sub Indonesia · m3u8',
         shape: 'episodes',
     },
-    melolo: {
-        label: '📱 Drama Mini',
-        short: 'DM',
-        note: 'Sub Indonesia · m3u8',
-        shape: 'episodes',
-    },
-    flickreels: {
-        label: '🎞️ Drama Reels',
-        short: 'DR',
-        note: 'Sub Indonesia · m3u8',
-        shape: 'episodes',
-    },
 };
-const ID_SOURCE_ORDER = ['reelshort', 'dramabox', 'shortmax', 'pinedrama', 'netshort', 'freereels', 'melolo', 'flickreels'];
+const ID_SOURCE_ORDER = ['reelshort', 'dramabox', 'shortmax', 'pinedrama', 'netshort', 'freereels'];
 
 // ---- tiny per-instance cache (survives warm invocations only) --------------
 const _cache = new Map();
@@ -596,188 +584,6 @@ async function frEpisode(id, ep) {
     return { url, locked: false };
 }
 
-// ---- Melolo adapters ----------------------------------------------------------
-function mlBook(b) {
-    return {
-        src: 'melolo',
-        id: String(b.book_id || b.bookId || ''),
-        title: b.book_name || b.title || '',
-        titleOrig: '',
-        pic: b.thumb_url || b.cover || '',
-        remarks: '',
-        year: '',
-        area: 'Indonesia',
-        genre: '',
-        overview: String(b.abstract || ''),
-        updated: '',
-        episodes: Number(b.serial_count || b.episode_count || 0) || 0,
-    };
-}
-
-async function mlList() {
-    const j = await sanse('/melolo/latest', { ttlMs: 600000 });
-    // /melolo/latest returns a bare array (unlike /melolo/trending's {books}).
-    const arr = Array.isArray(j) ? j : (j?.books || j?.data?.books || []);
-    return arr.map(mlBook).filter(m => m.id && m.title);
-}
-
-async function mlSearch(q) {
-    const j = await sanse('/melolo/search?query=' + encodeURIComponent(q), { ttlMs: 120000 });
-    const sd = j?.data?.search_data;
-    const arr = Array.isArray(sd) ? sd.flatMap(s => (Array.isArray(s?.books) ? s.books : [])) : [];
-    if (arr.length) return arr.map(mlBook).filter(m => m.id && m.title);
-    // Fallback: deep-walk for any array of book-shaped objects.
-    const pools = [];
-    const walk = (v) => {
-        if (Array.isArray(v)) { if (v.length && typeof v[0] === 'object') pools.push(v); v.forEach(walk); }
-        else if (v && typeof v === 'object') Object.values(v).forEach(walk);
-    };
-    walk(j);
-    const seen = new Set();
-    const out = [];
-    for (const p of pools) {
-        for (const b of p) {
-            const m = mlBook(b);
-            if (m.id && m.title && !seen.has(m.id)) { seen.add(m.id); out.push(m); }
-        }
-    }
-    return out;
-}
-
-async function mlDetail(id) {
-    const j = await sanse('/melolo/detail?bookId=' + encodeURIComponent(id), { ttlMs: 600000 });
-    const vd = j?.data?.video_data;
-    if (!vd || !vd.series_id_str) return null;
-    const vids = Array.isArray(vd.video_list) ? vd.video_list : [];
-    const epList = vids.map((v, i) => ({ label: 'Eps ' + (i + 1), ep: v.vid }));
-    return {
-        src: 'melolo',
-        id: String(vd.series_id_str),
-        title: vd.series_title || '',
-        titleOrig: '',
-        pic: vd.series_cover || '',
-        remarks: '',
-        year: '',
-        area: 'Indonesia',
-        genre: '',
-        overview: String(vd.series_intro || ''),
-        episodes: epList.length,
-        epList,
-    };
-}
-
-function mlDecodeUrl(u) {
-    if (!u) return '';
-    if (u.startsWith('http')) return u;
-    try {
-        const dec = Buffer.from(u, 'base64').toString('utf8');
-        if (dec.startsWith('http')) return dec;
-    } catch { /* keep raw */ }
-    return u;
-}
-
-async function mlEpisode(id, ep) {
-    const j = await sanse('/melolo/stream?videoId=' + encodeURIComponent(ep), { ttlMs: 3600000 });
-    const d = j?.data || j;
-    const main = mlDecodeUrl(d?.main_url || '');
-    if (/^https?:\/\//.test(main)) return { url: main, locked: false };
-    let model = d?.video_model;
-    if (typeof model === 'string') { try { model = JSON.parse(model); } catch { model = null; } }
-    const vlist = model?.video_list;
-    if (vlist && typeof vlist === 'object') {
-        const keys = Object.keys(vlist)
-            .sort((a, b) => Number(b.replace(/\D/g, '')) - Number(a.replace(/\D/g, '')));
-        for (const k of keys) {
-            const u = mlDecodeUrl(vlist[k]?.main_url_decoded || vlist[k]?.main_url || '');
-            if (/^https?:\/\//.test(u)) return { url: u, locked: false };
-        }
-    }
-    // Deep-walk fallback: some builds nest the playable URL under a different
-    // key — grab any http(s) URL, preferring HLS/MP4.
-    const found = [];
-    const walk = (v) => {
-        if (typeof v === 'string' && /^https?:\/\//.test(v)) found.push(v);
-        else if (Array.isArray(v)) v.forEach(walk);
-        else if (v && typeof v === 'object') Object.values(v).forEach(walk);
-    };
-    walk(j);
-    const url = found.find(u => /\.(m3u8|mp4)(\?|$)/i.test(u)) || found[0] || '';
-    if (!url) throw new Error('no_playable_variant');
-    return { url, locked: false };
-}
-
-// ---- FlickReels adapters ------------------------------------------------------
-// Same "reels" platform family as FreeReels — the Sansekai docs list the same
-// endpoint shape (foryou / latest / search / detailAndAllEpisode). The upstream
-// responses are structurally close to FreeReels, so the mapping mirrors it.
-function fkBook(b) {
-    return {
-        src: 'flickreels',
-        id: String(b.key || b.id || ''),
-        title: b.title || b.name || '',
-        titleOrig: '',
-        pic: b.cover || b.cover_url || '',
-        remarks: '',
-        year: '',
-        area: 'Indonesia',
-        genre: Array.isArray(b.content_tags) ? b.content_tags.join(', ') : String(b.categories || ''),
-        overview: String(b.desc || b.description || ''),
-        updated: '',
-        episodes: Number(b.episode_count || b.total_episodes || 0) || 0,
-    };
-}
-
-async function fkList() {
-    const j = await sanse('/flickreels/foryou?page=1', { ttlMs: 600000 });
-    const arr = j?.data?.items || j?.data?.list || j?.items || j?.list || (Array.isArray(j) ? j : []);
-    return arr.map(fkBook).filter(m => m.id && m.title);
-}
-
-async function fkSearch(q) {
-    const j = await sanse('/flickreels/search?query=' + encodeURIComponent(q), { ttlMs: 120000 });
-    const arr = j?.data?.items || j?.data?.list || j?.items || j?.list || (Array.isArray(j) ? j : []);
-    return arr.map(fkBook).filter(m => m.id && m.title);
-}
-
-async function fkInfo(id) {
-    const j = await sanse('/flickreels/detailAndAllEpisode?id=' + encodeURIComponent(id), { ttlMs: 600000 });
-    return j?.data?.info || j?.info || j?.data || j || null;
-}
-
-async function fkDetail(id) {
-    const info = await fkInfo(id);
-    if (!info || (!info.id && !info.key)) return null;
-    const eps = Array.isArray(info.episode_list) ? info.episode_list : [];
-    const epList = eps.map((e, i) => ({ label: e.name || 'Eps ' + (i + 1), ep: e.id ?? (i + 1) }));
-    return {
-        src: 'flickreels',
-        id: String(info.id || info.key),
-        title: info.title || info.name || '',
-        titleOrig: '',
-        pic: info.cover || info.cover_url || '',
-        remarks: '',
-        year: '',
-        area: 'Indonesia',
-        genre: '',
-        overview: String(info.desc || info.description || ''),
-        episodes: epList.length,
-        epList,
-    };
-}
-
-async function fkEpisode(id, ep) {
-    const info = await fkInfo(id);
-    const eps = Array.isArray(info?.episode_list) ? info.episode_list : [];
-    const target = eps.find(e => String(e.id) === String(ep)) || eps[0];
-    if (!target) throw new Error('no_episode');
-    // Same priority as FreeReels: H.264 HLS first (plays everywhere), then a
-    // direct MP4, then HEVC as the last resort.
-    const url = target.external_audio_h264_m3u8 || target.video_url || target.m3u8_url
-        || target.external_audio_h265_m3u8 || '';
-    if (!url) throw new Error('no_playable_variant');
-    return { url, locked: false };
-}
-
 // ---- handler ---------------------------------------------------------------
 function forGrid(items) {
     return items.map(({ epList, ...rest }) => rest);
@@ -806,8 +612,6 @@ export default async function handler(req, res) {
         pinedrama: { list: pdList, search: pdSearch, detail: pdDetail, episode: pdEpisode },
         netshort: { list: nsList, search: nsSearch, detail: nsDetail, episode: nsEpisode },
         freereels: { list: frList, search: frSearch, detail: frDetail, episode: frEpisode },
-        melolo: { list: mlList, search: mlSearch, detail: mlDetail, episode: mlEpisode },
-        flickreels: { list: fkList, search: fkSearch, detail: fkDetail, episode: fkEpisode },
     };
     const A = ADAPTERS[key];
 

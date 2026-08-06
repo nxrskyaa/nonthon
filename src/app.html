@@ -1313,7 +1313,7 @@ let DRACIN_SOURCES = [
 let _dracinSourcesLoaded = false;
 // Sources served by /api/dracin-id (Indonesian-localized) rather than the
 // MacCMS /api/dracin endpoint. Their episodes resolve their media URL lazily.
-const DRACIN_ID_SOURCES = new Set(['reelshort', 'dramabox', 'shortmax', 'pinedrama', 'netshort', 'freereels', 'melolo', 'flickreels']);
+const DRACIN_ID_SOURCES = new Set(['reelshort', 'dramabox', 'shortmax', 'pinedrama', 'netshort', 'freereels']);
 async function loadDracinSources() {
     if (_dracinSourcesLoaded) return;
     let macc = [];
@@ -2709,10 +2709,10 @@ let _retryCount = 0;
 let _openSubCache = {};
 
 // No iframe embed fallbacks. Every third-party embed host we tested
-// (2Embed, Flicky, Frembed, and now Nxsha) injects ad popunders/overlays
-// (including gambling ads) into the user's browser, which violates the
-// "clean sources only" rule. The player therefore only ever uses native
-// HLS sources resolved server-side (see /api/stream), which are ad-free.
+// injects ad popunders/overlays (including gambling ads) into the user's
+// browser, which violates the "clean sources only" rule. The player
+// therefore only ever uses native HLS sources resolved server-side
+// (see /api/stream), which are ad-free.
 
 async function loadStream(type, id, season, episode) {
     const loading = document.getElementById('player-loading');
