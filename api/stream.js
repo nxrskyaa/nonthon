@@ -79,15 +79,71 @@ function parseServers(html) {
     return items;
 }
 
-/** Resolve one server to a playable proxy m3u8 (+ its embedded subtitles). */
+// ── Direct-source resolution ────────────────────────────────────────────────
+// Some modiplay servers resolve to CDNs whose proxy-issued m3u8 is broken
+// (acek-cdn 403 / no CORS). The ORIGINAL embed host (e.g. vibuxer.com,
+// minochinos.com) publishes the real, CORS-open m3u8 inside a packed player
+// script — decode it and use that URL directly: ad-free, playable everywhere.
+
+/** Decode a Dean-Edwards packed JS blob (base-36 word substitution). */
+function decodePackedJs(html) {
+    const idx = html.indexOf('eval(function(p,a,c,k,e,d)');
+    if (idx === -1) return null;
+    const slice = html.slice(idx, idx + 40000);
+    const m = slice.match(/\}\('(.*?)',(\d+),(\d+),'(.*?)'\.split\('\|'\)\)\)/s);
+    if (!m) return null;
+    const [, body, baseStr, , wordsStr] = m;
+    const base = parseInt(baseStr, 10) || 36;
+    const words = wordsStr.split('|');
+    return body.replace(/\b([0-9a-z]+)\b/gi, (tok) => {
+        const n = parseInt(tok, base);
+        if (Number.isNaN(n) || n < 0 || n >= words.length) return tok;
+        return words[n];
+    });
+}
+
+/** Repair decode artifacts in the extracted direct m3u8 URL. */
+function repairDirectUrl(u) {
+    const qIdx = u.indexOf('?');
+    if (qIdx === -1) return u;
+    let path = u.slice(0, qIdx);
+    const qs = u.slice(qIdx + 1);
+    // packed single letters l,n,h get eaten inside the path segment
+    path = path.replace(/_,,,,\./, '_,l,n,h,.');
+    const names = ['t', 's', 'e', 'f'];
+    let ni = 0;
+    const out = qs.split('&').map((part) => {
+        if (part === '=.') return 'i=0.4';           // eaten i=0.4 param
+        if (part.startsWith('=')) {                  // eaten t/s/e/f names
+            const name = ni < names.length ? names[ni] : 'x';
+            ni += 1;
+            return `${name}=${part.slice(1)}`;
+        }
+        return part;
+    });
+    return `${path}?${out.join('&')}`;
+}
+
+/** Fetch the original embed page and extract its verified direct m3u8. */
+async function resolveDirectEmbed(embedUrl) {
+    const { status, text: embedHtml } = await getText(embedUrl, embedUrl);
+    if (status !== 200 || !embedHtml) return null;
+    const decoded = decodePackedJs(embedHtml);
+    if (!decoded) return null;
+    const m = decoded.match(/"hls2"\s*:\s*"([^"]+)"/);
+    if (!m) return null;
+    const url = repairDirectUrl(m[1]);
+    // Verify it actually streams from our server (200 + m3u8 body) and has CORS.
+    const r = await getText(url, embedUrl);
+    if (r.status !== 200 || !r.text.startsWith('#EXTM3U')) return null;
+    return url;
+}
+
+/** Resolve one server to a playable, CORS-open m3u8 (+ embedded subtitles). */
 async function resolveSource(host, srv) {
     const proxy = `${host}/proxy.php?p=${encodeURIComponent(srv.platform)}&c=${encodeURIComponent(srv.code)}` +
         `&title=${encodeURIComponent(srv.title || '')}&noredirect=1`;
     const { text: playerHtml } = await getText(proxy, host + '/');
-    const sm = playerHtml.match(/var\s+src\s*=\s*"([^"]+serve_m3u8[^"]+)"/);
-    if (!sm) return null;
-    let url = sm[1].replace(/\\\//g, '/').replace(/\\u0026/g, '&');
-    if (url.startsWith('/')) url = host + url;
 
     const subtitles = [];
     const seen = new Set();
@@ -101,6 +157,24 @@ async function resolveSource(host, srv) {
             subtitles.push({ lang, label: langNames[lang] || lang.toUpperCase(), url: su });
         }
     }
+
+    // Preferred: the original embed host's own CORS-open direct m3u8.
+    const embedMatch = playerHtml.match(/var\s+EMBED_URL='([^']+)'/);
+    if (embedMatch) {
+        try {
+            const direct = await resolveDirectEmbed(embedMatch[1]);
+            if (direct) {
+                return { name: srv.name || srv.platform || 'Server', streamUrl: direct, subtitles };
+            }
+        } catch (e) { /* fall back to legacy proxy m3u8 */ }
+    }
+
+    // Legacy: modiplay proxy m3u8 (works for residential IPs on healthy CDNs).
+    const sm = playerHtml.match(/var\s+src\s*=\s*"([^"]+serve_m3u8[^"]+)"/);
+    if (!sm) return null;
+    let url = sm[1].replace(/\\\//g, '/').replace(/\\u0026/g, '&');
+    if (url.startsWith('/')) url = host + url;
+
     return { name: srv.name || srv.platform || 'Server', streamUrl: url, subtitles };
 }
 
