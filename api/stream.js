@@ -195,6 +195,35 @@ export default async function handler(req, res) {
 
     const season = req.query.s || 1;
     const episode = req.query.e || 1;
+
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+    // Preferred: resolve via the stable-IP relay (tokens bound to the VM's
+    // egress IP, so the relay can always fetch master/variant/segments).
+    try {
+        const url = `${RELAY_BASE}/resolve?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}` +
+            `&s=${encodeURIComponent(season)}&e=${encodeURIComponent(episode)}`;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 25000);
+        const r = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': UA } });
+        clearTimeout(timer);
+        const data = await r.json();
+        if (r.ok && data.sources && data.sources.length) {
+            const wrap = (u) => (/^https?:\/\//.test(u) && !u.includes('rozgarlelo.modiplay.xyz'))
+                ? `${RELAY_BASE}/hls?u=${Buffer.from(u).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`
+                : u;
+            const sources = data.sources.map((s) => ({ ...s, streamUrl: wrap(s.streamUrl) }));
+            return res.status(200).json({
+                success: true, type,
+                sources,
+                streamUrl: sources[0].streamUrl,
+                subtitles: sources[0].subtitles,
+            });
+        }
+        if (data.error === 'no_source') return res.status(404).json({ error: 'no_source' });
+        // fall through to local resolution
+    } catch (e) { /* relay unreachable -> local resolution below */ }
+
     const embedPath = type === 'movie'
         ? `/embed/tmdb/movie?id=${id}`
         : `/embed/tmdb/tv?id=${id}&s=${season}&e=${episode}`;
@@ -226,7 +255,6 @@ export default async function handler(req, res) {
             cacheSet(cacheKey, sources, 300000);
         }
 
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         return res.status(200).json({
             success: true, type,
             sources,
