@@ -20,6 +20,11 @@ const HOSTS = ['https://rozgarlelo.modiplay.xyz'];
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 const TIMEOUT_MS = 15000;
 
+// Stable-IP HLS relay (see relay-server.js, exposed via Cloudflare Tunnel).
+// Direct-source tokens are bound to the resolving server's egress IP, so all
+// media bytes are relayed through this host. Kept in sync by the hourly cron.
+const RELAY_BASE = 'https://debian-document-thriller-congressional.trycloudflare.com';
+
 const langNames = {
     en: 'English', eng: 'English', id: 'Indonesia', ind: 'Indonesia',
     es: 'Español', fr: 'Français', de: 'Deutsch', it: 'Italiano',
@@ -167,7 +172,7 @@ async function resolveSource(host, srv) {
         try {
             const direct = await resolveDirectEmbed(embedMatch[1]);
             if (direct) {
-                const wrapped = `/api/hls?u=${Buffer.from(direct).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
+                const wrapped = `${RELAY_BASE}/hls?u=${Buffer.from(direct).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
                 return { name: srv.name || srv.platform || 'Server', streamUrl: wrapped, subtitles };
             }
         } catch (e) { /* fall back to legacy proxy m3u8 */ }
