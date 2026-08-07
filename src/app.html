@@ -1312,7 +1312,7 @@ let DRACIN_SOURCES = [
 
 let _dracinSourcesLoaded = false;
 // Sources served by /api/dracin-id (Indonesian-localized) rather than the
-// MacCMS /api/dracin endpoint. Their episodes resolve their media URL lazily.
+// catalog endpoint. Their episodes resolve their media URL lazily.
 const DRACIN_ID_SOURCES = new Set(['reelshort', 'dramabox', 'shortmax', 'pinedrama', 'netshort', 'freereels']);
 async function loadDracinSources() {
     if (_dracinSourcesLoaded) return;
@@ -1348,7 +1348,7 @@ function dracinImg(url) {
 
 async function dracinApi(params) {
     // Indonesian-localized sources live behind /api/dracin-id; everything else
-    // (the MacCMS catalogs + the mixed "fresh" feed) behind /api/dracin.
+    // (the catalog sources + the mixed "fresh" feed) behind /api/dracin.
     const base = DRACIN_ID_SOURCES.has(params.source) ? '/api/dracin-id' : '/api/dracin';
     const r = await fetch(base + '?' + new URLSearchParams(params));
     const d = await r.json();
