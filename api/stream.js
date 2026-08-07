@@ -159,12 +159,16 @@ async function resolveSource(host, srv) {
     }
 
     // Preferred: the original embed host's own CORS-open direct m3u8.
+    // The token in the URL is bound to OUR server IP (we resolved it), so the
+    // URL is wrapped in the /api/hls relay — the browser never touches the CDN
+    // directly (its requests would 403).
     const embedMatch = playerHtml.match(/var\s+EMBED_URL='([^']+)'/);
     if (embedMatch) {
         try {
             const direct = await resolveDirectEmbed(embedMatch[1]);
             if (direct) {
-                return { name: srv.name || srv.platform || 'Server', streamUrl: direct, subtitles };
+                const wrapped = `/api/hls?u=${Buffer.from(direct).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
+                return { name: srv.name || srv.platform || 'Server', streamUrl: wrapped, subtitles };
             }
         } catch (e) { /* fall back to legacy proxy m3u8 */ }
     }
